@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "py-gui": {
+      "source": "stevenke1981/python_skills",
+      "sourceType": "github",
+      "skillPath": "py-gui/SKILL.md",
+      "computedHash": "1e77524b03b54d132f122bcea375475f02270d2537a48c9812797047740f6008"
+    }
+  }
+}
