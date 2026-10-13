@@ -57,7 +57,7 @@ Write-Host ""
 Write-Host "[3/3] Dang bien dich $OutputFile..." -ForegroundColor Yellow
 Write-Host "  (Toi uu hoa: An console -H=windowsgui va loai bo debug symbols -s -w)" -ForegroundColor Gray
 
-go build -ldflags "-H=windowsgui -s -w" -o $OutputFile ./cmd/mikrotik-app
+go build -ldflags "-H=windowsgui -s -w" -o $OutputFile .
 
 if (Test-Path $OutputFile) {
     $item = Get-Item $OutputFile

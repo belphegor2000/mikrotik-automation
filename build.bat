@@ -28,7 +28,7 @@ if %errorlevel% neq 0 (
 echo.
 echo [2/2] Dang bien dich mikrotik-automation.exe...
 echo       (Cac co toi uu: -H=windowsgui -s -w)
-go build -ldflags "-H=windowsgui -s -w" -o mikrotik-automation.exe ./cmd/mikrotik-app
+go build -ldflags "-H=windowsgui -s -w" -o mikrotik-automation.exe .
 
 if %errorlevel% equ 0 (
     echo.

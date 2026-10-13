@@ -3,4 +3,4 @@ $env:Path = "C:\Program Files\Go\bin;C:\Users\WhitePoplar\AppData\Local\Microsof
 $env:CGO_ENABLED = "1"
 
 Write-Host "Dang khoi dong Mikrotik Automation Tool bang Go..." -ForegroundColor Cyan
-go run ./cmd/mikrotik-app
+go run .
