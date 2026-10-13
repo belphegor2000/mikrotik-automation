@@ -19,7 +19,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: 'stable'
           cache: true
 
       - name: Setup Java JDK 17
@@ -34,6 +34,11 @@ jobs:
           ndk-version: r26b
           add-to-path: true
 
+      - name: Install Linux Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev xorg-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev
+
       - name: Install Fyne CLI
         run: |
           go install fyne.io/tools/cmd/fyne@latest
@@ -47,4 +52,4 @@ jobs:
         with:
           name: MikroTik-Auto-Samsung-A56-APK
           path: "*.apk"
-          if-no-files-found: warn
+          if-no-files-found: error
