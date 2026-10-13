@@ -18,9 +18,10 @@ type TabBackup struct {
 	entryBkName    *widget.Entry
 	btnExportRSC   *widget.Button
 	btnCreateBK    *widget.Button
-	btnRefreshList *widget.Button
-	filesList      *widget.List
-	filesData      []backup.BackupItem
+	btnRefreshList  *widget.Button
+	filesList       *widget.List
+	filesListMobile *widget.List
+	filesData       []backup.BackupItem
 }
 
 func NewTabBackup(state *AppState, w fyne.Window) *TabBackup {
@@ -30,12 +31,7 @@ func NewTabBackup(state *AppState, w fyne.Window) *TabBackup {
 	tb.btnExportRSC = widget.NewButton("💾 Tải File Cấu Hình (.rsc) Về Máy Tính", func() {
 		tb.exportRSC()
 	})
-
-	cardRSC := container.NewVBox(
-		widget.NewLabelWithStyle("1. Xuất Cấu Hình Script (.rsc)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabel("Xuất cấu hình dạng lệnh CLI text để xem lại hoặc nạp sang thiết bị khác."),
-		tb.btnExportRSC,
-	)
+	tb.btnExportRSC.Importance = widget.HighImportance
 
 	// 2. Binary backup
 	tb.entryBkName = widget.NewEntry()
@@ -44,25 +40,21 @@ func NewTabBackup(state *AppState, w fyne.Window) *TabBackup {
 	tb.btnCreateBK = widget.NewButton("📦 Tạo Bản Sao Lưu (.backup) Trên Router", func() {
 		tb.createBackup()
 	})
+	tb.btnCreateBK.Importance = widget.HighImportance
 
-	cardBK := container.NewVBox(
-		widget.NewLabelWithStyle("2. Bản Sao Lưu Toàn Diện (.backup)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabel("Lưu trọn vẹn trạng thái hệ thống (Users, Mật khẩu, MAC, Certificates)."),
-		container.NewBorder(nil, nil, widget.NewLabel("Tên file:"), nil, tb.entryBkName),
-		tb.btnCreateBK,
-	)
-
-	// 3. Router files list & Restore
+	// 3. Router files list (Desktop 3-column table)
 	tb.filesData = make([]backup.BackupItem, 0)
 	tb.filesList = widget.NewList(
 		func() int {
 			return len(tb.filesData)
 		},
 		func() fyne.CanvasObject {
+			btn := widget.NewButton("Phục Hồi", nil)
+			btn.Importance = widget.WarningImportance
 			return container.NewGridWithColumns(3,
 				widget.NewLabel("File Name"),
 				widget.NewLabel("Type"),
-				widget.NewButton("Phục Hồi", nil),
+				btn,
 			)
 		},
 		func(id widget.ListItemID, obj fyne.CanvasObject) {
@@ -81,9 +73,55 @@ func NewTabBackup(state *AppState, w fyne.Window) *TabBackup {
 		},
 	)
 
+	// Mobile 2-line Card
+	tb.filesListMobile = widget.NewList(
+		func() int {
+			return len(tb.filesData)
+		},
+		func() fyne.CanvasObject {
+			lblName := widget.NewLabelWithStyle("File Name", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+			lblType := widget.NewLabel("Type")
+			btn := widget.NewButton("Phục Hồi", nil)
+			btn.Importance = widget.WarningImportance
+			topRow := container.NewBorder(nil, nil, lblName, btn)
+			return container.NewVBox(topRow, lblType)
+		},
+		func(id widget.ListItemID, obj fyne.CanvasObject) {
+			if id >= len(tb.filesData) {
+				return
+			}
+			item := tb.filesData[id]
+			vbox := obj.(*fyne.Container)
+			topRow := vbox.Objects[0].(*fyne.Container)
+			topRow.Objects[0].(*widget.Label).SetText(item.Name)
+			btn := topRow.Objects[1].(*widget.Button)
+			btn.OnTapped = func() {
+				tb.confirmRestore(item.Name)
+			}
+			vbox.Objects[1].(*widget.Label).SetText(item.Type)
+		},
+	)
+
 	tb.btnRefreshList = widget.NewButton("🔄 Làm mới danh sách file", func() {
 		tb.refreshFiles()
 	})
+
+	return tb
+}
+
+func (tb *TabBackup) BuildDesktopContainer() fyne.CanvasObject {
+	cardRSC := container.NewVBox(
+		widget.NewLabelWithStyle("1. Xuất Cấu Hình Script (.rsc)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabel("Xuất cấu hình dạng lệnh CLI text để xem lại hoặc nạp sang thiết bị khác."),
+		tb.btnExportRSC,
+	)
+
+	cardBK := container.NewVBox(
+		widget.NewLabelWithStyle("2. Bản Sao Lưu Toàn Diện (.backup)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabel("Lưu trọn vẹn trạng thái hệ thống (Users, Mật khẩu, MAC, Certificates)."),
+		container.NewBorder(nil, nil, widget.NewLabel("Tên file:"), nil, tb.entryBkName),
+		tb.btnCreateBK,
+	)
 
 	cardFiles := container.NewBorder(
 		container.NewBorder(nil, nil, widget.NewLabelWithStyle("3. Danh Sách File Sao Lưu Trên Router:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), tb.btnRefreshList),
@@ -91,7 +129,7 @@ func NewTabBackup(state *AppState, w fyne.Window) *TabBackup {
 		tb.filesList,
 	)
 
-	tb.container = container.NewBorder(
+	return container.NewBorder(
 		container.NewVBox(
 			widget.NewLabelWithStyle("💾 Sao Lưu & Phục Hồi Cấu Hình", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 			container.NewGridWithColumns(2, cardRSC, cardBK),
@@ -99,11 +137,40 @@ func NewTabBackup(state *AppState, w fyne.Window) *TabBackup {
 		nil, nil, nil,
 		cardFiles,
 	)
-	return tb
+}
+
+func (tb *TabBackup) BuildMobileContainer() fyne.CanvasObject {
+	cardRSC := container.NewVBox(
+		widget.NewLabelWithStyle("1. Xuất Cấu Hình Script (.rsc)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabel("Xuất cấu hình dạng text để xem lại."),
+		container.NewPadded(tb.btnExportRSC),
+	)
+
+	cardBK := container.NewVBox(
+		widget.NewLabelWithStyle("2. Bản Sao Lưu Toàn Diện (.backup)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabel("Lưu toàn bộ users, mật khẩu, certs."),
+		container.NewBorder(nil, nil, widget.NewLabelWithStyle("Tên:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), nil, tb.entryBkName),
+		container.NewPadded(tb.btnCreateBK),
+	)
+
+	cardFiles := container.NewVBox(
+		widget.NewLabelWithStyle("3. File Sao Lưu Trên Router:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		tb.btnRefreshList,
+		container.NewGridWrap(fyne.NewSize(360, 240), tb.filesListMobile),
+	)
+
+	return container.NewVBox(
+		widget.NewLabelWithStyle("💾 Sao Lưu & Phục Hồi", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		cardRSC,
+		widget.NewSeparator(),
+		cardBK,
+		widget.NewSeparator(),
+		cardFiles,
+	)
 }
 
 func (tb *TabBackup) Container() fyne.CanvasObject {
-	return tb.container
+	return tb.BuildDesktopContainer()
 }
 
 func (tb *TabBackup) exportRSC() {
@@ -162,6 +229,9 @@ func (tb *TabBackup) refreshFiles() {
 			if err == nil {
 				tb.filesData = files
 				tb.filesList.Refresh()
+				if tb.filesListMobile != nil {
+					tb.filesListMobile.Refresh()
+				}
 				tb.state.Log(fmt.Sprintf("✓ Đã tìm thấy %d bản sao lưu trên Router.", len(files)))
 			}
 		})

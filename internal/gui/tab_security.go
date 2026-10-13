@@ -41,6 +41,7 @@ func NewTabSecurity(state *AppState) *TabSecurity {
 	ts.btnDisable = widget.NewButton("⚠️ Tắt Dịch Vụ Đã Chọn", func() {
 		ts.disableServices()
 	})
+	ts.btnDisable.Importance = widget.WarningImportance
 
 	// Cột 2: Firewall Filter & Chống Brute Force
 	descFW := "Thiết lập quy tắc tường lửa và tự động bảo vệ RouterOS:\n" +
@@ -52,10 +53,12 @@ func NewTabSecurity(state *AppState) *TabSecurity {
 	ts.btnFW = widget.NewButton("🔒 Áp Dụng Firewall Filter", func() {
 		ts.applyFirewall()
 	})
+	ts.btnFW.Importance = widget.HighImportance
 
 	ts.btnBruteForce = widget.NewButton("🛡️ Chống Brute Force (Blacklist)", func() {
 		ts.applyBruteForce()
 	})
+	ts.btnBruteForce.Importance = widget.HighImportance
 
 	ts.fwBoxes = container.NewVBox(
 		widget.NewLabelWithStyle("2. Firewall Filter & Chống Brute Force:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),

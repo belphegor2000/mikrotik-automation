@@ -8,10 +8,11 @@ import (
 )
 
 var (
-	ColorPrimary     = color.NRGBA{R: 0x1a, G: 0x73, B: 0xe8, A: 0xff} // Google Blue #1a73e8
-	ColorPrimaryDark = color.NRGBA{R: 0x15, G: 0x57, B: 0xb0, A: 0xff}
-	ColorDestructive = color.NRGBA{R: 0xdc, G: 0x35, B: 0x45, A: 0xff} // Red #dc3545
-	ColorSuccess     = color.NRGBA{R: 0x10, G: 0xb9, B: 0x81, A: 0xff} // Green #10b981
+	ColorPrimary     = color.NRGBA{R: 0x25, G: 0x63, B: 0xeb, A: 0xff} // Tailwind Blue-600 #2563eb
+	ColorPrimaryDark = color.NRGBA{R: 0x1d, G: 0x4e, B: 0xd8, A: 0xff} // Blue-700 #1d4ed8
+	ColorDestructive = color.NRGBA{R: 0xdc, G: 0x26, B: 0x26, A: 0xff} // Red-600 #dc2626
+	ColorSuccess     = color.NRGBA{R: 0x16, G: 0xa3, B: 0x4a, A: 0xff} // Green-600 #16a34a
+	ColorWarning     = color.NRGBA{R: 0xd9, G: 0x77, B: 0x06, A: 0xff} // Amber-600 #d97706
 
 	// CurrentThemeVariant tracks active theme (Dark by default)
 	CurrentThemeVariant fyne.ThemeVariant = theme.VariantDark
@@ -35,6 +36,8 @@ func (t *CustomAppTheme) Color(name fyne.ThemeColorName, _ fyne.ThemeVariant) co
 		return ColorDestructive
 	case theme.ColorNameSuccess:
 		return ColorSuccess
+	case theme.ColorNameWarning:
+		return ColorWarning
 	default:
 		return theme.DefaultTheme().Color(name, t.Variant)
 	}
@@ -49,5 +52,12 @@ func (t *CustomAppTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
 }
 
 func (t *CustomAppTheme) Size(name fyne.ThemeSizeName) float32 {
-	return theme.DefaultTheme().Size(name)
+	switch name {
+	case theme.SizeNameInputRadius, theme.SizeNameSelectionRadius:
+		return 8.0 // Bo góc 8px hiện đại theo chuẩn Fluent/Material 3
+	case theme.SizeNamePadding:
+		return 6.0
+	default:
+		return theme.DefaultTheme().Size(name)
+	}
 }

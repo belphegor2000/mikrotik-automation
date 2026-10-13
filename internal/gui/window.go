@@ -86,8 +86,8 @@ func (mw *MainWindow) SetDesktopLayout() {
 		container.NewTabItem("🌐 Cấu Hình Mạng", mw.TabNetwork.BuildDesktopContainer()),
 		container.NewTabItem("🔒 Bảo Mật", mw.TabSecurity.BuildDesktopContainer()),
 		container.NewTabItem("🔐 IPSec VPN", mw.TabIPSec.BuildDesktopContainer()),
-		container.NewTabItem("💾 Sao Lưu & Phục Hồi", mw.TabBackup.Container()),
-		container.NewTabItem("🗑️ Xoá Cấu Hình", mw.TabClear.Container()),
+		container.NewTabItem("💾 Sao Lưu & Phục Hồi", mw.TabBackup.BuildDesktopContainer()),
+		container.NewTabItem("🗑️ Xoá Cấu Hình", mw.TabClear.BuildDesktopContainer()),
 	)
 	appTabs.SetTabLocation(container.TabLocationTop)
 
@@ -121,8 +121,8 @@ func (mw *MainWindow) SetMobileLayout() {
 		container.NewTabItem("🌐 Mạng", container.NewVScroll(mw.TabNetwork.BuildMobileContainer())),
 		container.NewTabItem("🔒 Bảo Mật", container.NewVScroll(mw.TabSecurity.BuildMobileContainer())),
 		container.NewTabItem("🔐 VPN", container.NewVScroll(mw.TabIPSec.BuildMobileContainer())),
-		container.NewTabItem("💾 Sao Lưu", container.NewVScroll(mw.TabBackup.Container())),
-		container.NewTabItem("🗑️ Xoá", container.NewVScroll(mw.TabClear.Container())),
+		container.NewTabItem("💾 Sao Lưu", container.NewVScroll(mw.TabBackup.BuildMobileContainer())),
+		container.NewTabItem("🗑️ Xoá", container.NewVScroll(mw.TabClear.BuildMobileContainer())),
 		container.NewTabItem("📜 Log", mw.LogPanel.Container()),
 	)
 	mobileTabs.SetTabLocation(container.TabLocationBottom)

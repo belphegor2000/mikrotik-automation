@@ -27,3 +27,5 @@ desktop.ini
 
 # Assistant local folders
 .claude/
+.agents/
+skills-lock.json

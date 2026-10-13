@@ -85,6 +85,7 @@ func NewTabIPSec(state *AppState) *TabIPSec {
 	ti.btnApply = widget.NewButton("🔐 Áp Dụng Cấu Hình IPSec VPN", func() {
 		ti.apply()
 	})
+	ti.btnApply.Importance = widget.HighImportance
 
 	return ti
 }

@@ -19,6 +19,15 @@ type TabClear struct {
 func NewTabClear(state *AppState, w fyne.Window) *TabClear {
 	tc := &TabClear{state: state, window: w}
 
+	tc.btnClear = widget.NewButton("🗑️ Xoá Cấu Hình Tự Động (15 Bước)", func() {
+		tc.confirmClear()
+	})
+	tc.btnClear.Importance = widget.DangerImportance
+
+	return tc
+}
+
+func (tc *TabClear) BuildDesktopContainer() fyne.CanvasObject {
 	desc := "⚠️ Chức năng này sẽ dọn dẹp và xoá an toàn tất cả cấu hình do công cụ tạo ra theo 15 bước tuần tự:\n" +
 		"  1. DHCP Leases & Networks\n" +
 		"  2. DHCP Servers & IP Pools\n" +
@@ -31,20 +40,33 @@ func NewTabClear(state *AppState, w fyne.Window) *TabClear {
 		"  9. IPSec VPN Policies, Identities, Peers, Profiles\n\n" +
 		"Các cấu hình mặc định khác của router sẽ được giữ nguyên an toàn."
 
-	tc.btnClear = widget.NewButton("🗑️ Xoá Cấu Hình Tự Động (15 Bước)", func() {
-		tc.confirmClear()
-	})
-
-	tc.container = container.NewVBox(
+	card := container.NewVBox(
 		widget.NewLabelWithStyle("🗑️ Dọn Dẹp & Xoá Cấu Hình RouterOS 7", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		widget.NewLabel(desc),
-		tc.btnClear,
+		widget.NewSeparator(),
+		container.NewPadded(tc.btnClear),
 	)
-	return tc
+	return card
+}
+
+func (tc *TabClear) BuildMobileContainer() fyne.CanvasObject {
+	desc := "⚠️ Dọn dẹp an toàn 15 bước các cấu hình do tool tạo:\n" +
+		"• DHCP, IP Pools, VLANs, Bridge\n" +
+		"• PPPoE WAN clients & PCC Mangle\n" +
+		"• Firewall [MK-AUTO] & Routing Tables\n" +
+		"• IPSec VPN Policies & Peers\n\n" +
+		"Các cấu hình gốc của RouterOS luôn an toàn."
+
+	return container.NewVBox(
+		widget.NewLabelWithStyle("🗑️ Dọn Dẹp Cấu Hình", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabel(desc),
+		widget.NewSeparator(),
+		container.NewPadded(tc.btnClear),
+	)
 }
 
 func (tc *TabClear) Container() fyne.CanvasObject {
-	return tc.container
+	return tc.BuildDesktopContainer()
 }
 
 func (tc *TabClear) confirmClear() {

@@ -64,10 +64,12 @@ func NewConnectionBar(state *AppState, a fyne.App) *ConnectionBar {
 	cb.btnConnect = widget.NewButton("🔌 Kết nối", func() {
 		cb.connect()
 	})
+	cb.btnConnect.Importance = widget.HighImportance
 
 	cb.btnDisconn = widget.NewButton("❌ Ngắt kết nối", func() {
 		cb.disconnect()
 	})
+	cb.btnDisconn.Importance = widget.DangerImportance
 	cb.btnDisconn.Disable()
 
 	themeText := "☀️ Sáng"
@@ -113,24 +115,24 @@ func (cb *ConnectionBar) toggleTheme() {
 
 func (cb *ConnectionBar) BuildDesktopContainer(onToggleMobile func()) fyne.CanvasObject {
 	rowInputs := container.NewGridWithColumns(6,
-		container.NewVBox(widget.NewLabel("Phương thức:"), cb.radioProto),
-		container.NewVBox(widget.NewLabel("Địa chỉ IP:"), cb.entryHost),
-		container.NewVBox(widget.NewLabel("Cổng:"), cb.entryPort),
-		container.NewVBox(widget.NewLabel("Tài khoản:"), cb.entryUser),
-		container.NewVBox(widget.NewLabel("Mật khẩu:"), cb.entryPass),
-		container.NewVBox(widget.NewLabel("Thao tác:"), container.NewGridWithColumns(2, cb.btnConnect, cb.btnDisconn)),
+		container.NewVBox(widget.NewLabelWithStyle("Phương thức:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), cb.radioProto),
+		container.NewVBox(widget.NewLabelWithStyle("Địa chỉ IP:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), cb.entryHost),
+		container.NewVBox(widget.NewLabelWithStyle("Cổng:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), cb.entryPort),
+		container.NewVBox(widget.NewLabelWithStyle("Tài khoản:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), cb.entryUser),
+		container.NewVBox(widget.NewLabelWithStyle("Mật khẩu:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), cb.entryPass),
+		container.NewVBox(widget.NewLabelWithStyle("Thao tác:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), container.NewGridWithColumns(2, cb.btnConnect, cb.btnDisconn)),
 	)
 
 	var rightControls fyne.CanvasObject
 	if onToggleMobile != nil {
-		btnMobile := widget.NewButton("📱 Chế độ Mobile", onToggleMobile)
+		btnMobile := widget.NewButton("📱 Mobile View", onToggleMobile)
 		rightControls = container.NewHBox(btnMobile, cb.btnTheme)
 	} else {
 		rightControls = cb.btnTheme
 	}
 
 	statusCard := container.NewBorder(nil, nil, cb.lblStatus, rightControls)
-	cb.container = container.NewVBox(rowInputs, statusCard)
+	cb.container = container.NewVBox(container.NewPadded(rowInputs), widget.NewSeparator(), statusCard)
 	return cb.container
 }
 
@@ -149,25 +151,25 @@ func (cb *ConnectionBar) BuildMobileHeader(w fyne.Window, onToggleDesktop func()
 
 	headerCard := container.NewBorder(
 		nil, nil,
-		cb.lblMobileStatus,
+		container.NewHBox(cb.lblMobileStatus),
 		rightControls,
 	)
 
-	return container.NewPadded(headerCard)
+	return container.NewVBox(container.NewPadded(headerCard), widget.NewSeparator())
 }
 
 func (cb *ConnectionBar) ShowMobileSettingsDialog(w fyne.Window) {
 	formContent := container.NewVBox(
 		widget.NewLabelWithStyle("⚙️ THIẾT LẬP KẾT NỐI ROUTEROS", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-		widget.NewLabel("Phương thức kết nối:"),
+		widget.NewLabelWithStyle("Phương thức kết nối:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		cb.radioProto,
-		widget.NewLabel("Địa chỉ IP Router:"),
+		widget.NewLabelWithStyle("Địa chỉ IP Router:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		cb.entryHost,
-		widget.NewLabel("Cổng (Port):"),
+		widget.NewLabelWithStyle("Cổng (Port):", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		cb.entryPort,
-		widget.NewLabel("Tài khoản:"),
+		widget.NewLabelWithStyle("Tài khoản:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		cb.entryUser,
-		widget.NewLabel("Mật khẩu:"),
+		widget.NewLabelWithStyle("Mật khẩu:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		cb.entryPass,
 		container.NewGridWithColumns(2, cb.btnConnect, cb.btnDisconn),
 		widget.NewSeparator(),

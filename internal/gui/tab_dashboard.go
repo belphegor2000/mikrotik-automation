@@ -25,11 +25,12 @@ type TabDashboard struct {
 	lblRAM      *widget.Label
 	progHDD     *widget.ProgressBar
 	lblHDD      *widget.Label
-	ifaceList   *widget.List
-	ifaceData   []dashboard.InterfaceItem
-	btnRefresh  *widget.Button
-	btnReboot   *widget.Button
-	cardHardware *fyne.Container
+	ifaceList       *widget.List
+	ifaceListMobile *widget.List
+	ifaceData       []dashboard.InterfaceItem
+	btnRefresh      *widget.Button
+	btnReboot       *widget.Button
+	cardHardware    *fyne.Container
 }
 
 func NewTabDashboard(state *AppState, w fyne.Window) *TabDashboard {
@@ -56,7 +57,7 @@ func NewTabDashboard(state *AppState, w fyne.Window) *TabDashboard {
 	td.progHDD = widget.NewProgressBar()
 	td.lblHDD = widget.NewLabel("Ổ Cứng: 0 MB / 0 MB (0%)")
 
-	// Interfaces list
+	// Interfaces list (Desktop 5-column table)
 	td.ifaceData = make([]dashboard.InterfaceItem, 0)
 	td.ifaceList = widget.NewList(
 		func() int {
@@ -92,13 +93,47 @@ func NewTabDashboard(state *AppState, w fyne.Window) *TabDashboard {
 		},
 	)
 
+	// Interfaces list (Mobile 2-line Card)
+	td.ifaceListMobile = widget.NewList(
+		func() int {
+			return len(td.ifaceData)
+		},
+		func() fyne.CanvasObject {
+			lblTop := widget.NewLabelWithStyle("Name [type]  Status", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+			lblSub := widget.NewLabelWithStyle("MAC / Comment", fyne.TextAlignLeading, fyne.TextStyle{Italic: true})
+			return container.NewVBox(lblTop, lblSub)
+		},
+		func(id widget.ListItemID, obj fyne.CanvasObject) {
+			if id >= len(td.ifaceData) {
+				return
+			}
+			item := td.ifaceData[id]
+			vbox := obj.(*fyne.Container)
+			stText := "🔴 Down"
+			if item.Disabled {
+				stText = "⚪ Disabled"
+			} else if item.Running {
+				stText = "🟢 Up"
+			}
+			vbox.Objects[0].(*widget.Label).SetText(fmt.Sprintf("%s [%s]  %s", item.Name, item.Type, stText))
+
+			subText := item.MAC
+			if item.Comment != "" {
+				subText += " • " + item.Comment
+			}
+			vbox.Objects[1].(*widget.Label).SetText(subText)
+		},
+	)
+
 	td.btnRefresh = widget.NewButton("🔄 Làm Mới Thông Số", func() {
 		td.Refresh()
 	})
+	td.btnRefresh.Importance = widget.HighImportance
 
 	td.btnReboot = widget.NewButton("⚠️ Khởi Động Lại Router (Reboot)", func() {
 		td.confirmReboot()
 	})
+	td.btnReboot.Importance = widget.DangerImportance
 
 	// Register on-connect hook
 	td.state.OnConnect = append(td.state.OnConnect, func() {
@@ -149,7 +184,7 @@ func (td *TabDashboard) BuildMobileContainer() fyne.CanvasObject {
 		btnBar,
 		widget.NewSeparator(),
 		widget.NewLabelWithStyle("Danh Sách Cổng Mạng:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		container.NewGridWrap(fyne.NewSize(360, 260), td.ifaceList),
+		container.NewGridWrap(fyne.NewSize(360, 260), td.ifaceListMobile),
 	)
 }
 
@@ -196,6 +231,9 @@ func (td *TabDashboard) Refresh() {
 			if err2 == nil {
 				td.ifaceData = ifaces
 				td.ifaceList.Refresh()
+				if td.ifaceListMobile != nil {
+					td.ifaceListMobile.Refresh()
+				}
 			}
 			td.state.Log("✓ Đã cập nhật thông số Dashboard thành công.")
 		})

@@ -15,8 +15,8 @@ func NewLoginView(a fyne.App, onLoginSuccess func()) fyne.CanvasObject {
 		authMgr, _ = auth.LoadOrCreateAuthManager()
 	}
 
-	header := widget.NewLabelWithStyle("🔐 ĐĂNG NHẬP HỆ THỐNG", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
-	subHeader := widget.NewLabelWithStyle("Mikrotik RouterOS 7 Automation Tool", fyne.TextAlignCenter, fyne.TextStyle{Italic: true})
+	header := widget.NewLabelWithStyle("🔐 MIKROTIK ROUTEROS 7", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	subHeader := widget.NewLabelWithStyle("Automation & Network Controller", fyne.TextAlignCenter, fyne.TextStyle{Italic: true})
 
 	entryUser := widget.NewEntry()
 	entryUser.SetText("admin")
@@ -46,20 +46,23 @@ func NewLoginView(a fyne.App, onLoginSuccess func()) fyne.CanvasObject {
 		}
 	}
 
-	btnLogin := widget.NewButton("✓ Đăng Nhập", doLogin)
+	btnLogin := widget.NewButton("✓ ĐĂNG NHẬP HỆ THỐNG", doLogin)
 	btnLogin.Importance = widget.HighImportance
 
 	entryPass.OnSubmitted = func(_ string) {
 		doLogin()
 	}
 
+	lblHint := widget.NewLabelWithStyle("💡 Mặc định: admin / Loveisdie1@", fyne.TextAlignCenter, fyne.TextStyle{Italic: true})
+
 	form := container.NewVBox(
-		widget.NewLabel("Tài khoản:"),
+		widget.NewLabelWithStyle("Tài khoản:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		entryUser,
-		widget.NewLabel("Mật khẩu:"),
+		widget.NewLabelWithStyle("Mật khẩu:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		entryPass,
 		lblError,
 		container.NewPadded(btnLogin),
+		lblHint,
 	)
 
 	card := container.NewVBox(
@@ -69,7 +72,7 @@ func NewLoginView(a fyne.App, onLoginSuccess func()) fyne.CanvasObject {
 		form,
 	)
 
-	box := container.NewGridWrap(fyne.NewSize(350, 310), card)
+	box := container.NewGridWrap(fyne.NewSize(350, 340), card)
 	return container.NewVScroll(container.NewCenter(box))
 }
 
