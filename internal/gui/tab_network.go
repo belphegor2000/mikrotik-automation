@@ -31,6 +31,10 @@ type TabNetwork struct {
 	btnApplyStep   *widget.Button
 	btnDeployAll   *widget.Button
 	subTabs        *container.AppTabs
+	wan1Box        *fyne.Container
+	wan2Box        *fyne.Container
+	viewBridge     *fyne.Container
+	viewVLAN       *fyne.Container
 }
 
 func NewTabNetwork(state *AppState, w fyne.Window) *TabNetwork {
@@ -65,23 +69,16 @@ func NewTabNetwork(state *AppState, w fyne.Window) *TabNetwork {
 	})
 	tn.radioWAN.SetSelected("1 đường (ether1)")
 
-	wan1Box := container.NewVBox(
+	tn.wan1Box = container.NewVBox(
 		widget.NewLabelWithStyle("WAN 1 (ether1)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		widget.NewLabel("Tài khoản:"), tn.entryUser1,
 		widget.NewLabel("Mật khẩu:"), tn.entryPass1,
 	)
 
-	wan2Box := container.NewVBox(
+	tn.wan2Box = container.NewVBox(
 		widget.NewLabelWithStyle("WAN 2 (ether2)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		widget.NewLabel("Tài khoản:"), tn.entryUser2,
 		widget.NewLabel("Mật khẩu:"), tn.entryPass2,
-	)
-
-	viewPPPoE := container.NewVBox(
-		widget.NewLabelWithStyle("Cấu Hình Đường Truyền PPPoE WAN:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		tn.radioWAN,
-		container.NewGridWithColumns(2, wan1Box, wan2Box),
-		widget.NewLabel("Khi chọn 2 đường: Hệ thống tự động tạo Mangle PCC, Dual Default Routes & NAT masquerade."),
 	)
 
 	// ── 2. Bridge Sub-view ────────────────────────────
@@ -93,7 +90,7 @@ func NewTabNetwork(state *AppState, w fyne.Window) *TabNetwork {
 		tn.previewBridgePorts()
 	})
 
-	viewBridge := container.NewVBox(
+	tn.viewBridge = container.NewVBox(
 		widget.NewLabelWithStyle("Cấu Hình Bridge LAN (bridgeVLAN):", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		widget.NewLabel(descBridge),
 		tn.btnPreviewPort,
@@ -149,20 +146,13 @@ func NewTabNetwork(state *AppState, w fyne.Window) *TabNetwork {
 	tn.vlanTable.SetColumnWidth(3, 140)
 	tn.vlanTable.SetColumnWidth(4, 80)
 
-	viewVLAN := container.NewBorder(
+	tn.viewVLAN = container.NewBorder(
 		container.NewVBox(
 			widget.NewLabelWithStyle("Quản Lý Phân Đoạn Mạng VLANs:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 			vlanBar,
 		),
 		nil, nil, nil,
 		tn.vlanTable,
-	)
-
-	// Sub-tabs assembly
-	tn.subTabs = container.NewAppTabs(
-		container.NewTabItem("1. PPPoE WAN", viewPPPoE),
-		container.NewTabItem("2. Bridge LAN", viewBridge),
-		container.NewTabItem("3. VLANs & Subnets", viewVLAN),
 	)
 
 	// Bottom action bar
@@ -173,21 +163,64 @@ func NewTabNetwork(state *AppState, w fyne.Window) *TabNetwork {
 		tn.deployAll()
 	})
 
+	return tn
+}
+
+func (tn *TabNetwork) BuildDesktopContainer() fyne.CanvasObject {
+	viewPPPoE := container.NewVBox(
+		widget.NewLabelWithStyle("Cấu Hình Đường Truyền PPPoE WAN:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		tn.radioWAN,
+		container.NewGridWithColumns(2, tn.wan1Box, tn.wan2Box),
+		widget.NewLabel("Khi chọn 2 đường: Hệ thống tự động tạo Mangle PCC, Dual Default Routes & NAT masquerade."),
+	)
+
+	tn.subTabs = container.NewAppTabs(
+		container.NewTabItem("1. PPPoE WAN", viewPPPoE),
+		container.NewTabItem("2. Bridge LAN", tn.viewBridge),
+		container.NewTabItem("3. VLANs & Subnets", tn.viewVLAN),
+	)
+
 	bottomBar := container.NewBorder(nil, nil, tn.btnApplyStep, tn.btnDeployAll)
 
-	tn.container = container.NewBorder(
+	return container.NewBorder(
 		widget.NewLabelWithStyle("🌐 Cấu Hình Mạng Toàn Diện", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		bottomBar,
 		nil,
 		nil,
 		tn.subTabs,
 	)
+}
 
-	return tn
+func (tn *TabNetwork) BuildMobileContainer() fyne.CanvasObject {
+	viewPPPoE := container.NewVBox(
+		widget.NewLabelWithStyle("Cấu Hình PPPoE WAN:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		tn.radioWAN,
+		tn.wan1Box,
+		widget.NewSeparator(),
+		tn.wan2Box,
+	)
+
+	mobileSubTabs := container.NewAppTabs(
+		container.NewTabItem("1. WAN", viewPPPoE),
+		container.NewTabItem("2. Bridge", tn.viewBridge),
+		container.NewTabItem("3. VLAN", tn.viewVLAN),
+	)
+
+	bottomBar := container.NewVBox(
+		container.NewPadded(tn.btnApplyStep),
+		container.NewPadded(tn.btnDeployAll),
+	)
+
+	return container.NewVBox(
+		widget.NewLabelWithStyle("🌐 Cấu Hình Mạng", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		mobileSubTabs,
+		widget.NewSeparator(),
+		bottomBar,
+	)
 }
 
 func (tn *TabNetwork) Container() fyne.CanvasObject {
-	return tn.container
+	return tn.BuildDesktopContainer()
 }
 
 func (tn *TabNetwork) previewBridgePorts() {

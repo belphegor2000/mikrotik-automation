@@ -29,6 +29,7 @@ type TabDashboard struct {
 	ifaceData   []dashboard.InterfaceItem
 	btnRefresh  *widget.Button
 	btnReboot   *widget.Button
+	cardHardware *fyne.Container
 }
 
 func NewTabDashboard(state *AppState, w fyne.Window) *TabDashboard {
@@ -39,7 +40,7 @@ func NewTabDashboard(state *AppState, w fyne.Window) *TabDashboard {
 	td.lblVersion = widget.NewLabel("--")
 	td.lblUptime = widget.NewLabelWithStyle("--", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
-	cardHardware := container.NewGridWithColumns(2,
+	td.cardHardware = container.NewGridWithColumns(2,
 		container.NewVBox(widget.NewLabel("Tên Router:"), td.lblIdentity),
 		container.NewVBox(widget.NewLabel("Thiết Bị / Model:"), td.lblBoard),
 		container.NewVBox(widget.NewLabel("Phiên Bản OS:"), td.lblVersion),
@@ -54,12 +55,6 @@ func NewTabDashboard(state *AppState, w fyne.Window) *TabDashboard {
 
 	td.progHDD = widget.NewProgressBar()
 	td.lblHDD = widget.NewLabel("Ổ Cứng: 0 MB / 0 MB (0%)")
-
-	cardResource := container.NewGridWithColumns(3,
-		container.NewVBox(td.lblCPU, td.progCPU),
-		container.NewVBox(td.lblRAM, td.progRAM),
-		container.NewVBox(td.lblHDD, td.progHDD),
-	)
 
 	// Interfaces list
 	td.ifaceData = make([]dashboard.InterfaceItem, 0)
@@ -105,23 +100,6 @@ func NewTabDashboard(state *AppState, w fyne.Window) *TabDashboard {
 		td.confirmReboot()
 	})
 
-	btnBar := container.NewBorder(nil, nil, td.btnRefresh, td.btnReboot)
-
-	content := container.NewBorder(
-		container.NewVBox(
-			widget.NewLabelWithStyle("📊 Giám Sát Hệ Thống & Tài Nguyên", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-			cardHardware,
-			cardResource,
-			widget.NewLabelWithStyle("Danh Sách Cổng Mạng (Interfaces):", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		),
-		btnBar,
-		nil,
-		nil,
-		td.ifaceList,
-	)
-
-	td.container = content
-
 	// Register on-connect hook
 	td.state.OnConnect = append(td.state.OnConnect, func() {
 		td.Refresh()
@@ -130,8 +108,53 @@ func NewTabDashboard(state *AppState, w fyne.Window) *TabDashboard {
 	return td
 }
 
+func (td *TabDashboard) BuildDesktopContainer() fyne.CanvasObject {
+	cardResource := container.NewGridWithColumns(3,
+		container.NewVBox(td.lblCPU, td.progCPU),
+		container.NewVBox(td.lblRAM, td.progRAM),
+		container.NewVBox(td.lblHDD, td.progHDD),
+	)
+	btnBar := container.NewBorder(nil, nil, td.btnRefresh, td.btnReboot)
+	return container.NewBorder(
+		container.NewVBox(
+			widget.NewLabelWithStyle("📊 Giám Sát Hệ Thống & Tài Nguyên", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			td.cardHardware,
+			cardResource,
+			widget.NewLabelWithStyle("Danh Sách Cổng Mạng (Interfaces):", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		),
+		btnBar,
+		nil,
+		nil,
+		td.ifaceList,
+	)
+}
+
+func (td *TabDashboard) BuildMobileContainer() fyne.CanvasObject {
+	cardResource := container.NewVBox(
+		container.NewVBox(td.lblCPU, td.progCPU),
+		container.NewVBox(td.lblRAM, td.progRAM),
+		container.NewVBox(td.lblHDD, td.progHDD),
+	)
+	btnBar := container.NewVBox(
+		container.NewPadded(td.btnRefresh),
+		container.NewPadded(td.btnReboot),
+	)
+	return container.NewVBox(
+		widget.NewLabelWithStyle("📊 Giám Sát RouterOS", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		td.cardHardware,
+		widget.NewSeparator(),
+		widget.NewLabelWithStyle("Tài Nguyên Hệ Thống:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		cardResource,
+		widget.NewSeparator(),
+		btnBar,
+		widget.NewSeparator(),
+		widget.NewLabelWithStyle("Danh Sách Cổng Mạng:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		container.NewGridWrap(fyne.NewSize(360, 260), td.ifaceList),
+	)
+}
+
 func (td *TabDashboard) Container() fyne.CanvasObject {
-	return td.container
+	return td.BuildDesktopContainer()
 }
 
 func (td *TabDashboard) Refresh() {

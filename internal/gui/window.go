@@ -82,13 +82,14 @@ func (mw *MainWindow) SetDesktopLayout() {
 	})
 
 	appTabs := container.NewAppTabs(
-		container.NewTabItem("📊 Dashboard", mw.TabDashboard.Container()),
-		container.NewTabItem("🌐 Cấu Hình Mạng", mw.TabNetwork.Container()),
-		container.NewTabItem("🔒 Bảo Mật", mw.TabSecurity.Container()),
-		container.NewTabItem("🔐 IPSec VPN", mw.TabIPSec.Container()),
+		container.NewTabItem("📊 Dashboard", mw.TabDashboard.BuildDesktopContainer()),
+		container.NewTabItem("🌐 Cấu Hình Mạng", mw.TabNetwork.BuildDesktopContainer()),
+		container.NewTabItem("🔒 Bảo Mật", mw.TabSecurity.BuildDesktopContainer()),
+		container.NewTabItem("🔐 IPSec VPN", mw.TabIPSec.BuildDesktopContainer()),
 		container.NewTabItem("💾 Sao Lưu & Phục Hồi", mw.TabBackup.Container()),
 		container.NewTabItem("🗑️ Xoá Cấu Hình", mw.TabClear.Container()),
 	)
+	appTabs.SetTabLocation(container.TabLocationTop)
 
 	content := container.NewBorder(
 		connBarContent,
@@ -116,14 +117,15 @@ func (mw *MainWindow) SetMobileLayout() {
 
 	// Wrap each tab content in container.NewVScroll for smooth mobile scrolling
 	mobileTabs := container.NewAppTabs(
-		container.NewTabItem("📊 Dashboard", container.NewVScroll(mw.TabDashboard.Container())),
-		container.NewTabItem("🌐 Mạng", container.NewVScroll(mw.TabNetwork.Container())),
-		container.NewTabItem("🔒 Bảo Mật", container.NewVScroll(mw.TabSecurity.Container())),
-		container.NewTabItem("🔐 VPN", container.NewVScroll(mw.TabIPSec.Container())),
+		container.NewTabItem("📊 Giám Sát", container.NewVScroll(mw.TabDashboard.BuildMobileContainer())),
+		container.NewTabItem("🌐 Mạng", container.NewVScroll(mw.TabNetwork.BuildMobileContainer())),
+		container.NewTabItem("🔒 Bảo Mật", container.NewVScroll(mw.TabSecurity.BuildMobileContainer())),
+		container.NewTabItem("🔐 VPN", container.NewVScroll(mw.TabIPSec.BuildMobileContainer())),
 		container.NewTabItem("💾 Sao Lưu", container.NewVScroll(mw.TabBackup.Container())),
 		container.NewTabItem("🗑️ Xoá", container.NewVScroll(mw.TabClear.Container())),
-		container.NewTabItem("📜 Nhật Ký", mw.LogPanel.Container()),
+		container.NewTabItem("📜 Log", mw.LogPanel.Container()),
 	)
+	mobileTabs.SetTabLocation(container.TabLocationBottom)
 
 	content := container.NewBorder(
 		mobileHeader,

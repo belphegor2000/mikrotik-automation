@@ -9,12 +9,14 @@ import (
 )
 
 type TabSecurity struct {
-	state        *AppState
-	container    *fyne.Container
-	checks       map[string]*widget.Check
-	btnDisable   *widget.Button
-	btnFW        *widget.Button
+	state         *AppState
+	container     *fyne.Container
+	checks        map[string]*widget.Check
+	btnDisable    *widget.Button
+	btnFW         *widget.Button
 	btnBruteForce *widget.Button
+	serviceBoxes  *fyne.Container
+	fwBoxes       *fyne.Container
 }
 
 func NewTabSecurity(state *AppState) *TabSecurity {
@@ -55,24 +57,38 @@ func NewTabSecurity(state *AppState) *TabSecurity {
 		ts.applyBruteForce()
 	})
 
-	fwBoxes := container.NewVBox(
+	ts.fwBoxes = container.NewVBox(
 		widget.NewLabelWithStyle("2. Firewall Filter & Chống Brute Force:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		widget.NewLabel(descFW),
 	)
+	ts.serviceBoxes = serviceBoxes
 
-	// Các nút chức năng nằm ngang hàng tuyệt đối trên một dòng
-	buttonsRow := container.NewGridWithColumns(3, ts.btnDisable, ts.btnFW, ts.btnBruteForce)
-
-	ts.container = container.NewVBox(
-		widget.NewLabelWithStyle("🔒 Bảo Mật & Tường Lửa RouterOS 7", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		container.NewGridWithColumns(2, serviceBoxes, fwBoxes),
-		buttonsRow,
-	)
 	return ts
 }
 
+func (ts *TabSecurity) BuildDesktopContainer() fyne.CanvasObject {
+	buttonsRow := container.NewGridWithColumns(3, ts.btnDisable, ts.btnFW, ts.btnBruteForce)
+	return container.NewVBox(
+		widget.NewLabelWithStyle("🔒 Bảo Mật & Tường Lửa RouterOS 7", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		container.NewGridWithColumns(2, ts.serviceBoxes, ts.fwBoxes),
+		buttonsRow,
+	)
+}
+
+func (ts *TabSecurity) BuildMobileContainer() fyne.CanvasObject {
+	return container.NewVBox(
+		widget.NewLabelWithStyle("🔒 Bảo Mật RouterOS", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		ts.serviceBoxes,
+		container.NewPadded(ts.btnDisable),
+		widget.NewSeparator(),
+		ts.fwBoxes,
+		container.NewPadded(ts.btnFW),
+		container.NewPadded(ts.btnBruteForce),
+	)
+}
+
 func (ts *TabSecurity) Container() fyne.CanvasObject {
-	return ts.container
+	return ts.BuildDesktopContainer()
 }
 
 func (ts *TabSecurity) disableServices() {

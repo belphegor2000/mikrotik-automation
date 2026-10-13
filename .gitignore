@@ -6,6 +6,7 @@
 *.dylib
 *.apk
 *.aab
+*.zip
 
 # Test binary, built with 'go test -c'
 *.test

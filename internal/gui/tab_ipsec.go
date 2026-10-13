@@ -24,6 +24,8 @@ type TabIPSec struct {
 	btnCloudDDNS   *widget.Button
 	btnApply       *widget.Button
 	window         fyne.Window
+	peerBox        *fyne.Container
+	localBox       *fyne.Container
 }
 
 func NewTabIPSec(state *AppState) *TabIPSec {
@@ -53,6 +55,7 @@ func NewTabIPSec(state *AppState) *TabIPSec {
 		ti.chkPassive,
 		ti.btnCloudDDNS,
 	)
+	ti.peerBox = peerBox
 
 	ti.entryPSK = widget.NewPasswordEntry()
 	ti.entryPSK.SetPlaceHolder("KhoaBiMat123!")
@@ -74,6 +77,7 @@ func NewTabIPSec(state *AppState) *TabIPSec {
 		ti.entryLocal,
 		localButtons,
 	)
+	ti.localBox = localBox
 
 	ti.entryRemote = widget.NewEntry()
 	ti.entryRemote.SetPlaceHolder("172.16.1.0/24, 172.16.2.0/24 (phân cách bằng dấu phẩy hoặc xuống dòng)")
@@ -82,10 +86,14 @@ func NewTabIPSec(state *AppState) *TabIPSec {
 		ti.apply()
 	})
 
+	return ti
+}
+
+func (ti *TabIPSec) BuildDesktopContainer() fyne.CanvasObject {
 	form := widget.NewForm(
-		widget.NewFormItem("IP Router Đầu Xa (Peer / DDNS):", peerBox),
+		widget.NewFormItem("IP Router Đầu Xa (Peer / DDNS):", ti.peerBox),
 		widget.NewFormItem("Pre-Shared Key (Mật khẩu):", ti.entryPSK),
-		widget.NewFormItem("Dải Mạng Nội Bộ (Local Subnets):", localBox),
+		widget.NewFormItem("Dải Mạng Nội Bộ (Local Subnets):", ti.localBox),
 		widget.NewFormItem("Dải Mạng Đầu Xa (Remote Subnets):", ti.entryRemote),
 	)
 
@@ -94,17 +102,35 @@ func NewTabIPSec(state *AppState) *TabIPSec {
 		"• Tự động sinh ma trận đầy đủ các chính sách IPSec Policy và NAT Bypass rules.\n" +
 		"• Hỗ trợ IP động qua Tên miền DDNS (FQDN) hoặc chế độ Passive Responder (0.0.0.0/0)."
 
-	ti.container = container.NewVBox(
+	return container.NewVBox(
 		widget.NewLabelWithStyle("🔐 Cấu Hình IPSec VPN Site-to-Site (IKEv2 PSK & Đa VLAN)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		widget.NewLabel(desc),
 		form,
 		ti.btnApply,
 	)
-	return ti
+}
+
+func (ti *TabIPSec) BuildMobileContainer() fyne.CanvasObject {
+	return container.NewVBox(
+		widget.NewLabelWithStyle("🔐 Cấu Hình IPSec VPN", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle("1. IP Router Đầu Xa (Peer / DDNS):", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		ti.peerBox,
+		widget.NewSeparator(),
+		widget.NewLabelWithStyle("2. Pre-Shared Key (Mật khẩu):", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		ti.entryPSK,
+		widget.NewSeparator(),
+		widget.NewLabelWithStyle("3. Dải Mạng Nội Bộ (Local Subnets):", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		ti.localBox,
+		widget.NewSeparator(),
+		widget.NewLabelWithStyle("4. Dải Mạng Đầu Xa (Remote Subnets):", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		ti.entryRemote,
+		widget.NewSeparator(),
+		container.NewPadded(ti.btnApply),
+	)
 }
 
 func (ti *TabIPSec) Container() fyne.CanvasObject {
-	return ti.container
+	return ti.BuildDesktopContainer()
 }
 
 func (ti *TabIPSec) detectLocalSubnets() {

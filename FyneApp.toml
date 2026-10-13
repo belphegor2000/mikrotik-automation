@@ -1,4 +1,4 @@
-Website = "https://github.com/mikrotik/automation"
+Website = "https://github.com/belphegor2000/mikrotik-automation"
 
 [Details]
 Icon = "icon.png"
@@ -6,6 +6,3 @@ Name = "MikroTik Auto"
 ID = "com.mikrotik.automation"
 Version = "1.0.0"
 Build = 1
-
-[Development]
-Release = false

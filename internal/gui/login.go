@@ -62,14 +62,15 @@ func NewLoginView(a fyne.App, onLoginSuccess func()) fyne.CanvasObject {
 		container.NewPadded(btnLogin),
 	)
 
-	content := container.NewVBox(
+	card := container.NewVBox(
 		header,
 		subHeader,
 		widget.NewSeparator(),
 		form,
 	)
 
-	return container.NewCenter(container.NewVScroll(container.NewPadded(content)))
+	box := container.NewGridWrap(fyne.NewSize(350, 310), card)
+	return container.NewVScroll(container.NewCenter(box))
 }
 
 // ShowLoginWindow displays a modal-like login window (retained for backward compatibility).
