@@ -44,9 +44,47 @@ func (l *logLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
 	return fyne.NewSize(w, l.minHeight)
 }
 
+// ReadOnlyLogEntry provides a high-contrast, read-only multi-line log viewer
+// that prevents user editing without triggering Fyne's disabled-text dimming.
+type ReadOnlyLogEntry struct {
+	widget.Entry
+}
+
+func NewReadOnlyLogEntry() *ReadOnlyLogEntry {
+	e := &ReadOnlyLogEntry{}
+	e.MultiLine = true
+	e.Wrapping = fyne.TextWrapBreak
+	e.TextStyle = fyne.TextStyle{Monospace: true}
+	e.ExtendBaseWidget(e)
+	return e
+}
+
+// TypedRune blocks keyboard character insertion.
+func (e *ReadOnlyLogEntry) TypedRune(_ rune) {}
+
+// TypedKey allows scrolling and cursor navigation but blocks editing keys.
+func (e *ReadOnlyLogEntry) TypedKey(k *fyne.KeyEvent) {
+	switch k.Name {
+	case fyne.KeyUp, fyne.KeyDown, fyne.KeyLeft, fyne.KeyRight, fyne.KeyPageUp, fyne.KeyPageDown, fyne.KeyHome, fyne.KeyEnd:
+		e.Entry.TypedKey(k)
+	}
+}
+
+// TypedShortcut allows clipboard copy and select all, but blocks cut, paste, undo.
+func (e *ReadOnlyLogEntry) TypedShortcut(s fyne.Shortcut) {
+	if _, ok := s.(*fyne.ShortcutCopy); ok {
+		e.Entry.TypedShortcut(s)
+		return
+	}
+	if _, ok := s.(*fyne.ShortcutSelectAll); ok {
+		e.Entry.TypedShortcut(s)
+		return
+	}
+}
+
 type LogPanel struct {
 	window          fyne.Window
-	entry           *widget.Entry
+	entry           *ReadOnlyLogEntry
 	scroll          *container.Scroll
 	container       *fyne.Container
 	btnExpand       *widget.Button
@@ -59,11 +97,7 @@ type LogPanel struct {
 }
 
 func NewLogPanel(w fyne.Window) *LogPanel {
-	entry := widget.NewMultiLineEntry()
-	entry.Wrapping = fyne.TextWrapBreak
-	entry.TextStyle = fyne.TextStyle{Monospace: true}
-	entry.Disable() // Read-only
-
+	entry := NewReadOnlyLogEntry()
 	scroll := container.NewVScroll(entry)
 
 	lp := &LogPanel{
