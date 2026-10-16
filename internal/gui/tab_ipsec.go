@@ -103,9 +103,12 @@ func (ti *TabIPSec) BuildDesktopContainer() fyne.CanvasObject {
 		"• Tự động sinh ma trận đầy đủ các chính sách IPSec Policy và NAT Bypass rules.\n" +
 		"• Hỗ trợ IP động qua Tên miền DDNS (FQDN) hoặc chế độ Passive Responder (0.0.0.0/0)."
 
+	lblDesc := widget.NewLabel(desc)
+	lblDesc.Wrapping = fyne.TextWrapWord
+
 	return container.NewVBox(
 		widget.NewLabelWithStyle("🔐 Cấu Hình IPSec VPN Site-to-Site (IKEv2 PSK & Đa VLAN)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabel(desc),
+		lblDesc,
 		form,
 		ti.btnApply,
 	)

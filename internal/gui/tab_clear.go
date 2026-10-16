@@ -40,9 +40,12 @@ func (tc *TabClear) BuildDesktopContainer() fyne.CanvasObject {
 		"  9. IPSec VPN Policies, Identities, Peers, Profiles\n\n" +
 		"Các cấu hình mặc định khác của router sẽ được giữ nguyên an toàn."
 
+	lblDesc := widget.NewLabel(desc)
+	lblDesc.Wrapping = fyne.TextWrapWord
+
 	card := container.NewVBox(
 		widget.NewLabelWithStyle("🗑️ Dọn Dẹp & Xoá Cấu Hình RouterOS 7", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabel(desc),
+		lblDesc,
 		widget.NewSeparator(),
 		container.NewPadded(tc.btnClear),
 	)

@@ -60,9 +60,12 @@ func NewTabSecurity(state *AppState) *TabSecurity {
 	})
 	ts.btnBruteForce.Importance = widget.HighImportance
 
+	lblFW := widget.NewLabel(descFW)
+	lblFW.Wrapping = fyne.TextWrapWord
+
 	ts.fwBoxes = container.NewVBox(
 		widget.NewLabelWithStyle("2. Firewall Filter & Chống Brute Force:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabel(descFW),
+		lblFW,
 	)
 	ts.serviceBoxes = serviceBoxes
 

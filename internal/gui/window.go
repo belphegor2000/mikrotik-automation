@@ -1,6 +1,8 @@
 package gui
 
 import (
+	"time"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 )
@@ -58,9 +60,6 @@ func NewMainWindow(a fyne.App, w fyne.Window) *MainWindow {
 
 // ShowMainView renders the desktop interface with a wide connection bar, tabs, and resizable spacious log panel.
 func (mw *MainWindow) ShowMainView() {
-	mw.Window.Resize(fyne.NewSize(1020, 850))
-	mw.Window.CenterOnScreen()
-
 	connBarContent := mw.ConnBar.BuildDesktopContainer()
 
 	appTabs := container.NewAppTabs(
@@ -95,6 +94,13 @@ func (mw *MainWindow) ShowMainView() {
 	)
 
 	mw.Window.SetContent(content)
+	mw.Window.Resize(fyne.NewSize(1000, 750))
+	mw.Window.CenterOnScreen()
+
+	// Ensure Windows OS message pump finishes WM_SIZE and snaps window to center
+	time.AfterFunc(80*time.Millisecond, func() {
+		fyne.Do(mw.Window.CenterOnScreen)
+	})
 }
 
 func (mw *MainWindow) ShowAndRun() {

@@ -80,15 +80,19 @@ func NewTabBackup(state *AppState, w fyne.Window) *TabBackup {
 }
 
 func (tb *TabBackup) BuildDesktopContainer() fyne.CanvasObject {
+	lblRSC := widget.NewLabel("Xuất cấu hình dạng lệnh CLI text để xem lại hoặc nạp sang thiết bị khác.")
+	lblRSC.Wrapping = fyne.TextWrapWord
 	cardRSC := container.NewVBox(
 		widget.NewLabelWithStyle("1. Xuất Cấu Hình Script (.rsc)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabel("Xuất cấu hình dạng lệnh CLI text để xem lại hoặc nạp sang thiết bị khác."),
+		lblRSC,
 		tb.btnExportRSC,
 	)
 
+	lblBK := widget.NewLabel("Lưu trọn vẹn trạng thái hệ thống (Users, Mật khẩu, MAC, Certificates).")
+	lblBK.Wrapping = fyne.TextWrapWord
 	cardBK := container.NewVBox(
 		widget.NewLabelWithStyle("2. Bản Sao Lưu Toàn Diện (.backup)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabel("Lưu trọn vẹn trạng thái hệ thống (Users, Mật khẩu, MAC, Certificates)."),
+		lblBK,
 		container.NewBorder(nil, nil, widget.NewLabelWithStyle("Tên file:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), nil, tb.entryBkName),
 		tb.btnCreateBK,
 	)

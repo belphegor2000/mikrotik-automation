@@ -18,13 +18,13 @@ type ConnectionBar struct {
 	entryHost  *widget.Entry
 	entryUser  *widget.Entry
 	entryPass  *widget.Entry
-	entryPort  *widget.Entry
-	radioProto *widget.RadioGroup
-	btnConnect *widget.Button
-	btnDisconn *widget.Button
-	lblStatus  *widget.Label
-	btnTheme   *widget.Button
-	container  *fyne.Container
+	entryPort   *widget.Entry
+	selectProto *widget.Select
+	btnConnect  *widget.Button
+	btnDisconn  *widget.Button
+	lblStatus   *widget.Label
+	btnTheme    *widget.Button
+	container   *fyne.Container
 }
 
 func NewConnectionBar(state *AppState, a fyne.App) *ConnectionBar {
@@ -45,15 +45,14 @@ func NewConnectionBar(state *AppState, a fyne.App) *ConnectionBar {
 	cb.entryPort.SetText("80")
 	cb.entryPort.SetPlaceHolder("Cổng")
 
-	cb.radioProto = widget.NewRadioGroup([]string{"REST API", "SSH"}, func(selected string) {
+	cb.selectProto = widget.NewSelect([]string{"REST API", "SSH"}, func(selected string) {
 		if selected == "SSH" {
 			cb.entryPort.SetText("22")
 		} else {
 			cb.entryPort.SetText("80")
 		}
 	})
-	cb.radioProto.SetSelected("REST API")
-	cb.radioProto.Horizontal = true
+	cb.selectProto.SetSelected("REST API")
 
 	cb.lblStatus = widget.NewLabel("⚪ Chưa kết nối")
 
@@ -102,16 +101,16 @@ func (cb *ConnectionBar) toggleTheme() {
 }
 
 func (cb *ConnectionBar) BuildDesktopContainer() fyne.CanvasObject {
-	rowInputs := container.NewGridWithColumns(6,
-		container.NewVBox(widget.NewLabelWithStyle("Phương thức:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), cb.radioProto),
+	rowInputs := container.NewGridWithColumns(5,
+		container.NewVBox(widget.NewLabelWithStyle("Phương thức:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), cb.selectProto),
 		container.NewVBox(widget.NewLabelWithStyle("Địa chỉ IP:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), cb.entryHost),
 		container.NewVBox(widget.NewLabelWithStyle("Cổng:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), cb.entryPort),
 		container.NewVBox(widget.NewLabelWithStyle("Tài khoản:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), cb.entryUser),
 		container.NewVBox(widget.NewLabelWithStyle("Mật khẩu:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), cb.entryPass),
-		container.NewVBox(widget.NewLabelWithStyle("Thao tác:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), container.NewGridWithColumns(2, cb.btnConnect, cb.btnDisconn)),
 	)
 
-	statusCard := container.NewBorder(nil, nil, cb.lblStatus, cb.btnTheme)
+	actionControls := container.NewHBox(cb.btnConnect, cb.btnDisconn, cb.btnTheme)
+	statusCard := container.NewBorder(nil, nil, cb.lblStatus, actionControls)
 	cb.container = container.NewVBox(container.NewPadded(rowInputs), widget.NewSeparator(), statusCard)
 	return cb.container
 }
@@ -131,7 +130,7 @@ func (cb *ConnectionBar) connect() {
 	if port <= 0 {
 		port = 80
 	}
-	proto := cb.radioProto.Selected
+	proto := cb.selectProto.Selected
 
 	cb.btnConnect.Disable()
 	cb.btnConnect.SetText("⏳ Đang kết nối...")
