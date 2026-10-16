@@ -28,7 +28,6 @@ type TabNetwork struct {
 	lblBridgePorts *widget.Label
 	btnPreviewPort *widget.Button
 	vlanTable      *widget.Table
-	vlanListMobile *widget.List
 	btnApplyStep   *widget.Button
 	btnDeployAll   *widget.Button
 	subTabs        *container.AppTabs
@@ -107,9 +106,6 @@ func NewTabNetwork(state *AppState, w fyne.Window) *TabNetwork {
 	btnClearVLAN := widget.NewButton("🗑️ Xoá tất cả", func() {
 		tn.state.VLANs = make([]vlan.VLANEntry, 0)
 		tn.vlanTable.Refresh()
-		if tn.vlanListMobile != nil {
-			tn.vlanListMobile.Refresh()
-		}
 		tn.state.Log("Đã xoá danh sách VLAN.")
 	})
 	btnClearVLAN.Importance = widget.DangerImportance
@@ -152,27 +148,6 @@ func NewTabNetwork(state *AppState, w fyne.Window) *TabNetwork {
 	tn.vlanTable.SetColumnWidth(2, 160)
 	tn.vlanTable.SetColumnWidth(3, 140)
 	tn.vlanTable.SetColumnWidth(4, 80)
-
-	// Mobile VLAN list
-	tn.vlanListMobile = widget.NewList(
-		func() int {
-			return len(tn.state.VLANs)
-		},
-		func() fyne.CanvasObject {
-			lblTop := widget.NewLabelWithStyle("VLAN ID - Name", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-			lblSub := widget.NewLabelWithStyle("CIDR / GW", fyne.TextAlignLeading, fyne.TextStyle{Italic: true})
-			return container.NewVBox(lblTop, lblSub)
-		},
-		func(id widget.ListItemID, obj fyne.CanvasObject) {
-			if id >= len(tn.state.VLANs) {
-				return
-			}
-			v := tn.state.VLANs[id]
-			vbox := obj.(*fyne.Container)
-			vbox.Objects[0].(*widget.Label).SetText(fmt.Sprintf("VLAN %d • %s", v.VLANID, v.Name))
-			vbox.Objects[1].(*widget.Label).SetText(fmt.Sprintf("Dải mạng: %s  (GW: %s)", v.CIDR, v.Gateway()))
-		},
-	)
 
 	tn.viewVLAN = container.NewBorder(
 		container.NewVBox(
@@ -217,56 +192,6 @@ func (tn *TabNetwork) BuildDesktopContainer() fyne.CanvasObject {
 		nil,
 		nil,
 		tn.subTabs,
-	)
-}
-
-func (tn *TabNetwork) BuildMobileContainer() fyne.CanvasObject {
-	viewPPPoE := container.NewVBox(
-		widget.NewLabelWithStyle("Cấu Hình PPPoE WAN:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		tn.radioWAN,
-		tn.wan1Box,
-		widget.NewSeparator(),
-		tn.wan2Box,
-	)
-
-	btnAddVLANMobile := widget.NewButton("➕ Thêm VLAN", func() {
-		tn.showAddVLANDialog()
-	})
-	btnAddVLANMobile.Importance = widget.HighImportance
-
-	btnClearVLANMobile := widget.NewButton("🗑️ Xoá tất cả", func() {
-		tn.state.VLANs = make([]vlan.VLANEntry, 0)
-		tn.vlanTable.Refresh()
-		if tn.vlanListMobile != nil {
-			tn.vlanListMobile.Refresh()
-		}
-		tn.state.Log("Đã xoá danh sách VLAN.")
-	})
-	btnClearVLANMobile.Importance = widget.DangerImportance
-
-	vlanBarMobile := container.NewGridWithColumns(2, btnAddVLANMobile, btnClearVLANMobile)
-	viewVLANMobile := container.NewVBox(
-		widget.NewLabelWithStyle("Quản Lý Phân Đoạn Mạng VLANs:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		vlanBarMobile,
-		container.NewGridWrap(fyne.NewSize(360, 260), tn.vlanListMobile),
-	)
-
-	mobileSubTabs := container.NewAppTabs(
-		container.NewTabItem("1. WAN", viewPPPoE),
-		container.NewTabItem("2. Bridge", tn.viewBridge),
-		container.NewTabItem("3. VLAN", viewVLANMobile),
-	)
-
-	bottomBar := container.NewVBox(
-		container.NewPadded(tn.btnApplyStep),
-		container.NewPadded(tn.btnDeployAll),
-	)
-
-	return container.NewVBox(
-		widget.NewLabelWithStyle("🌐 Cấu Hình Mạng", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		mobileSubTabs,
-		widget.NewSeparator(),
-		bottomBar,
 	)
 }
 
@@ -335,9 +260,6 @@ func (tn *TabNetwork) showAddVLANDialog() {
 		}
 		tn.state.VLANs = append(tn.state.VLANs, newVlan)
 		tn.vlanTable.Refresh()
-		if tn.vlanListMobile != nil {
-			tn.vlanListMobile.Refresh()
-		}
 		tn.state.Log(fmt.Sprintf("+ Đã thêm VLAN %d (%s) - %s", id, newVlan.Name, newVlan.CIDR))
 	}, tn.window)
 }

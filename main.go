@@ -19,12 +19,8 @@ func main() {
 	})
 
 	w.SetContent(loginView)
-	if fyne.CurrentDevice().IsMobile() {
-		w.SetFullScreen(false)
-	} else {
-		w.Resize(fyne.NewSize(420, 340))
-		w.CenterOnScreen()
-	}
+	w.Resize(fyne.NewSize(420, 360))
+	w.CenterOnScreen()
 
 	w.ShowAndRun()
 }

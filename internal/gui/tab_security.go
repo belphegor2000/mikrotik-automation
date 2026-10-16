@@ -78,18 +78,6 @@ func (ts *TabSecurity) BuildDesktopContainer() fyne.CanvasObject {
 	)
 }
 
-func (ts *TabSecurity) BuildMobileContainer() fyne.CanvasObject {
-	return container.NewVBox(
-		widget.NewLabelWithStyle("🔒 Bảo Mật RouterOS", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		ts.serviceBoxes,
-		container.NewPadded(ts.btnDisable),
-		widget.NewSeparator(),
-		ts.fwBoxes,
-		container.NewPadded(ts.btnFW),
-		container.NewPadded(ts.btnBruteForce),
-	)
-}
-
 func (ts *TabSecurity) Container() fyne.CanvasObject {
 	return ts.BuildDesktopContainer()
 }
@@ -145,4 +133,3 @@ func (ts *TabSecurity) applyBruteForce() {
 		_ = sec.ConfigureBruteForceProtection()
 	}()
 }
-

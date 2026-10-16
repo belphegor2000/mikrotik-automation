@@ -18,7 +18,7 @@ func TestLoginViewCreation(t *testing.T) {
 	_ = called
 }
 
-func TestMainWindowLayoutSwitching(t *testing.T) {
+func TestMainWindowDesktopLayout(t *testing.T) {
 	a := test.NewApp()
 	w := test.NewWindow(nil)
 
@@ -27,21 +27,23 @@ func TestMainWindowLayoutSwitching(t *testing.T) {
 		t.Fatal("Expected mw to be non-nil")
 	}
 
-	// Test Desktop Layout
-	mw.SetDesktopLayout()
-	if mw.IsMobile {
-		t.Errorf("Expected IsMobile to be false in desktop layout")
+	mw.ShowMainView()
+	if mw.Split == nil {
+		t.Fatal("Expected Split to be non-nil in desktop view")
+	}
+	if mw.Split.Offset < 0.5 {
+		t.Errorf("Expected Split offset to prioritize tabs by default, got %f", mw.Split.Offset)
 	}
 
-	// Test Mobile Layout (Samsung Galaxy A56 portrait simulation)
-	mw.SetMobileLayout()
-	if !mw.IsMobile {
-		t.Errorf("Expected IsMobile to be true in mobile layout")
+	// Verify log logging and clearing
+	mw.LogPanel.Log("Test log line 1")
+	mw.LogPanel.Log("Test log line 2")
+	if len(mw.LogPanel.logLines) != 4 { // 2 init logs + 2 test logs
+		t.Errorf("Expected 4 log lines, got %d", len(mw.LogPanel.logLines))
 	}
 
-	// Switch back to Desktop
-	mw.SetDesktopLayout()
-	if mw.IsMobile {
-		t.Errorf("Expected IsMobile to be false after switching back")
+	mw.LogPanel.Clear()
+	if len(mw.LogPanel.logLines) != 0 {
+		t.Errorf("Expected 0 log lines after clear, got %d", len(mw.LogPanel.logLines))
 	}
 }

@@ -8,40 +8,125 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
-type LogPanel struct {
-	entry     *widget.Entry
-	scroll    *container.Scroll
-	container *fyne.Container
-	toggleBtn *widget.Button
-	collapsed bool
-	mu        sync.Mutex
-	logLines  []string
+type logLayout struct {
+	minHeight float32
 }
 
-func NewLogPanel() *LogPanel {
+func (l *logLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+	if len(objects) >= 2 {
+		topBar := objects[0]
+		scroll := objects[1]
+		tbMin := topBar.MinSize()
+		topBar.Resize(fyne.NewSize(size.Width, tbMin.Height))
+		topBar.Move(fyne.NewPos(0, 0))
+
+		scrollY := tbMin.Height + 4
+		scrollH := size.Height - scrollY
+		if scrollH < 0 {
+			scrollH = 0
+		}
+		scroll.Resize(fyne.NewSize(size.Width, scrollH))
+		scroll.Move(fyne.NewPos(0, scrollY))
+	}
+}
+
+func (l *logLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
+	var w float32 = 400
+	for _, o := range objects {
+		if o.MinSize().Width > w {
+			w = o.MinSize().Width
+		}
+	}
+	return fyne.NewSize(w, l.minHeight)
+}
+
+type LogPanel struct {
+	window          fyne.Window
+	entry           *widget.Entry
+	scroll          *container.Scroll
+	container       *fyne.Container
+	btnExpand       *widget.Button
+	btnCopy         *widget.Button
+	btnClear        *widget.Button
+	splitController func(mode int)
+	expandedState   int // 0: normal (35%), 1: maximized (80%)
+	mu              sync.Mutex
+	logLines        []string
+}
+
+func NewLogPanel(w fyne.Window) *LogPanel {
 	entry := widget.NewMultiLineEntry()
 	entry.Wrapping = fyne.TextWrapBreak
+	entry.TextStyle = fyne.TextStyle{Monospace: true}
 	entry.Disable() // Read-only
 
-	entry.SetMinRowsVisible(6)
 	scroll := container.NewVScroll(entry)
 
 	lp := &LogPanel{
-		entry:  entry,
-		scroll: scroll,
+		window:        w,
+		entry:         entry,
+		scroll:        scroll,
+		logLines:      make([]string, 0, 100),
+		expandedState: 0,
 	}
 
 	headerLabel := widget.NewLabelWithStyle("📝 Nhật Ký Hoạt Động (Logs)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	lp.toggleBtn = widget.NewButton("▼ Thu gọn", func() {
-		lp.Toggle()
+
+	lp.btnCopy = widget.NewButtonWithIcon("Sao chép", theme.ContentCopyIcon(), func() {
+		lp.mu.Lock()
+		fullText := strings.Join(lp.logLines, "\n")
+		lp.mu.Unlock()
+		if lp.window != nil {
+			lp.window.Clipboard().SetContent(fullText)
+			lp.btnCopy.SetText("✓ Đã chép!")
+			time.AfterFunc(2*time.Second, func() {
+				fyne.Do(func() {
+					lp.btnCopy.SetText("Sao chép")
+				})
+			})
+		}
 	})
 
-	topBar := container.NewBorder(nil, nil, headerLabel, lp.toggleBtn)
-	lp.container = container.NewBorder(topBar, nil, nil, nil, scroll)
+	lp.btnClear = widget.NewButtonWithIcon("Xoá log", theme.DeleteIcon(), func() {
+		lp.Clear()
+	})
+
+	lp.btnExpand = widget.NewButton("▲ Mở rộng", func() {
+		lp.cycleExpand()
+	})
+
+	controls := container.NewHBox(lp.btnCopy, lp.btnClear, lp.btnExpand)
+	topBar := container.NewBorder(nil, nil, headerLabel, controls)
+
+	lp.container = container.New(&logLayout{minHeight: 220}, topBar, scroll)
 	return lp
+}
+
+func (l *LogPanel) SetWindow(w fyne.Window) {
+	l.window = w
+}
+
+func (l *LogPanel) SetSplitController(sc func(mode int)) {
+	l.splitController = sc
+}
+
+func (l *LogPanel) cycleExpand() {
+	if l.splitController == nil {
+		return
+	}
+	if l.expandedState == 0 {
+		l.expandedState = 1
+		l.btnExpand.SetText("▼ Mặc định")
+		l.splitController(1) // Maximized
+	} else {
+		l.expandedState = 0
+		l.btnExpand.SetText("▲ Mở rộng")
+		l.splitController(0) // Default
+	}
 }
 
 func (l *LogPanel) Container() fyne.CanvasObject {
@@ -55,8 +140,8 @@ func (l *LogPanel) Log(msg string) {
 	ts := time.Now().Format("15:04:05")
 	line := fmt.Sprintf("[%s] %s", ts, msg)
 	l.logLines = append(l.logLines, line)
-	if len(l.logLines) > 500 {
-		l.logLines = l.logLines[len(l.logLines)-500:]
+	if len(l.logLines) > 1000 {
+		l.logLines = l.logLines[len(l.logLines)-1000:]
 	}
 
 	fullText := strings.Join(l.logLines, "\n")
@@ -66,14 +151,11 @@ func (l *LogPanel) Log(msg string) {
 	})
 }
 
-func (l *LogPanel) Toggle() {
-	l.collapsed = !l.collapsed
-	if l.collapsed {
-		l.scroll.Hide()
-		l.toggleBtn.SetText("▲ Mở rộng")
-	} else {
-		l.scroll.Show()
-		l.toggleBtn.SetText("▼ Thu gọn")
-	}
-	l.container.Refresh()
+func (l *LogPanel) Clear() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.logLines = make([]string, 0, 100)
+	fyne.Do(func() {
+		l.entry.SetText("")
+	})
 }

@@ -49,22 +49,6 @@ func (tc *TabClear) BuildDesktopContainer() fyne.CanvasObject {
 	return card
 }
 
-func (tc *TabClear) BuildMobileContainer() fyne.CanvasObject {
-	desc := "⚠️ Dọn dẹp an toàn 15 bước các cấu hình do tool tạo:\n" +
-		"• DHCP, IP Pools, VLANs, Bridge\n" +
-		"• PPPoE WAN clients & PCC Mangle\n" +
-		"• Firewall [MK-AUTO] & Routing Tables\n" +
-		"• IPSec VPN Policies & Peers\n\n" +
-		"Các cấu hình gốc của RouterOS luôn an toàn."
-
-	return container.NewVBox(
-		widget.NewLabelWithStyle("🗑️ Dọn Dẹp Cấu Hình", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabel(desc),
-		widget.NewSeparator(),
-		container.NewPadded(tc.btnClear),
-	)
-}
-
 func (tc *TabClear) Container() fyne.CanvasObject {
 	return tc.BuildDesktopContainer()
 }

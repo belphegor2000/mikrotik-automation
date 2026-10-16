@@ -6,7 +6,6 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -14,20 +13,18 @@ import (
 )
 
 type ConnectionBar struct {
-	state           *AppState
-	app             fyne.App
-	entryHost       *widget.Entry
-	entryUser       *widget.Entry
-	entryPass       *widget.Entry
-	entryPort       *widget.Entry
-	radioProto      *widget.RadioGroup
-	btnConnect      *widget.Button
-	btnDisconn      *widget.Button
-	lblStatus       *widget.Label
-	lblMobileStatus *widget.Label
-	btnTheme        *widget.Button
-	btnMobileTheme  *widget.Button
-	container       *fyne.Container
+	state      *AppState
+	app        fyne.App
+	entryHost  *widget.Entry
+	entryUser  *widget.Entry
+	entryPass  *widget.Entry
+	entryPort  *widget.Entry
+	radioProto *widget.RadioGroup
+	btnConnect *widget.Button
+	btnDisconn *widget.Button
+	lblStatus  *widget.Label
+	btnTheme   *widget.Button
+	container  *fyne.Container
 }
 
 func NewConnectionBar(state *AppState, a fyne.App) *ConnectionBar {
@@ -59,7 +56,6 @@ func NewConnectionBar(state *AppState, a fyne.App) *ConnectionBar {
 	cb.radioProto.Horizontal = true
 
 	cb.lblStatus = widget.NewLabel("⚪ Chưa kết nối")
-	cb.lblMobileStatus = widget.NewLabel("⚪ Chưa kết nối")
 
 	cb.btnConnect = widget.NewButton("🔌 Kết nối", func() {
 		cb.connect()
@@ -79,9 +75,6 @@ func NewConnectionBar(state *AppState, a fyne.App) *ConnectionBar {
 	cb.btnTheme = widget.NewButton(themeText, func() {
 		cb.toggleTheme()
 	})
-	cb.btnMobileTheme = widget.NewButton(themeText, func() {
-		cb.toggleTheme()
-	})
 
 	cb.container = container.NewVBox()
 	return cb
@@ -90,9 +83,6 @@ func NewConnectionBar(state *AppState, a fyne.App) *ConnectionBar {
 func (cb *ConnectionBar) updateStatusText(text string) {
 	if cb.lblStatus != nil {
 		cb.lblStatus.SetText(text)
-	}
-	if cb.lblMobileStatus != nil {
-		cb.lblMobileStatus.SetText(text)
 	}
 }
 
@@ -103,17 +93,15 @@ func (cb *ConnectionBar) toggleTheme() {
 	if CurrentThemeVariant == theme.VariantDark {
 		cb.app.Settings().SetTheme(NewCustomAppTheme(theme.VariantLight))
 		cb.btnTheme.SetText("🌙 Tối")
-		cb.btnMobileTheme.SetText("🌙 Tối")
 		cb.state.Log("Đã chuyển sang giao diện Sáng (Light mode).")
 	} else {
 		cb.app.Settings().SetTheme(NewCustomAppTheme(theme.VariantDark))
 		cb.btnTheme.SetText("☀️ Sáng")
-		cb.btnMobileTheme.SetText("☀️ Sáng")
 		cb.state.Log("Đã chuyển sang giao diện Tối (Dark mode).")
 	}
 }
 
-func (cb *ConnectionBar) BuildDesktopContainer(onToggleMobile func()) fyne.CanvasObject {
+func (cb *ConnectionBar) BuildDesktopContainer() fyne.CanvasObject {
 	rowInputs := container.NewGridWithColumns(6,
 		container.NewVBox(widget.NewLabelWithStyle("Phương thức:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), cb.radioProto),
 		container.NewVBox(widget.NewLabelWithStyle("Địa chỉ IP:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), cb.entryHost),
@@ -123,67 +111,14 @@ func (cb *ConnectionBar) BuildDesktopContainer(onToggleMobile func()) fyne.Canva
 		container.NewVBox(widget.NewLabelWithStyle("Thao tác:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), container.NewGridWithColumns(2, cb.btnConnect, cb.btnDisconn)),
 	)
 
-	var rightControls fyne.CanvasObject
-	if onToggleMobile != nil {
-		btnMobile := widget.NewButton("📱 Mobile View", onToggleMobile)
-		rightControls = container.NewHBox(btnMobile, cb.btnTheme)
-	} else {
-		rightControls = cb.btnTheme
-	}
-
-	statusCard := container.NewBorder(nil, nil, cb.lblStatus, rightControls)
+	statusCard := container.NewBorder(nil, nil, cb.lblStatus, cb.btnTheme)
 	cb.container = container.NewVBox(container.NewPadded(rowInputs), widget.NewSeparator(), statusCard)
 	return cb.container
 }
 
-func (cb *ConnectionBar) BuildMobileHeader(w fyne.Window, onToggleDesktop func()) fyne.CanvasObject {
-	btnConfig := widget.NewButtonWithIcon("⚙️ Cấu hình", theme.SettingsIcon(), func() {
-		cb.ShowMobileSettingsDialog(w)
-	})
-
-	var rightControls fyne.CanvasObject
-	if !fyne.CurrentDevice().IsMobile() && onToggleDesktop != nil {
-		btnDesktop := widget.NewButton("💻 Desktop", onToggleDesktop)
-		rightControls = container.NewHBox(btnConfig, cb.btnMobileTheme, btnDesktop)
-	} else {
-		rightControls = container.NewHBox(btnConfig, cb.btnMobileTheme)
-	}
-
-	headerCard := container.NewBorder(
-		nil, nil,
-		container.NewHBox(cb.lblMobileStatus),
-		rightControls,
-	)
-
-	return container.NewVBox(container.NewPadded(headerCard), widget.NewSeparator())
-}
-
-func (cb *ConnectionBar) ShowMobileSettingsDialog(w fyne.Window) {
-	formContent := container.NewVBox(
-		widget.NewLabelWithStyle("⚙️ THIẾT LẬP KẾT NỐI ROUTEROS", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-		widget.NewLabelWithStyle("Phương thức kết nối:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		cb.radioProto,
-		widget.NewLabelWithStyle("Địa chỉ IP Router:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		cb.entryHost,
-		widget.NewLabelWithStyle("Cổng (Port):", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		cb.entryPort,
-		widget.NewLabelWithStyle("Tài khoản:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		cb.entryUser,
-		widget.NewLabelWithStyle("Mật khẩu:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		cb.entryPass,
-		container.NewGridWithColumns(2, cb.btnConnect, cb.btnDisconn),
-		widget.NewSeparator(),
-		cb.lblStatus,
-	)
-
-	d := dialog.NewCustom("Kết Nối MikroTik", "Đóng", container.NewVScroll(container.NewPadded(formContent)), w)
-	d.Resize(fyne.NewSize(360, 480))
-	d.Show()
-}
-
 func (cb *ConnectionBar) Container() fyne.CanvasObject {
 	if cb.container == nil || len(cb.container.Objects) == 0 {
-		return cb.BuildDesktopContainer(nil)
+		return cb.BuildDesktopContainer()
 	}
 	return cb.container
 }

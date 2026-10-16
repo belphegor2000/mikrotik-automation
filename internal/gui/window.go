@@ -11,13 +11,13 @@ type MainWindow struct {
 	State        *AppState
 	ConnBar      *ConnectionBar
 	LogPanel     *LogPanel
+	Split        *container.Split
 	TabDashboard *TabDashboard
 	TabNetwork   *TabNetwork
 	TabSecurity  *TabSecurity
 	TabIPSec     *TabIPSec
 	TabBackup    *TabBackup
 	TabClear     *TabClear
-	IsMobile     bool
 }
 
 func NewMainWindow(a fyne.App, w fyne.Window) *MainWindow {
@@ -25,7 +25,7 @@ func NewMainWindow(a fyne.App, w fyne.Window) *MainWindow {
 		w = a.NewWindow("Mikrotik RouterOS 7 — Automation Tool")
 	}
 
-	logPanel := NewLogPanel()
+	logPanel := NewLogPanel(w)
 	state := NewAppState(logPanel)
 	connBar := NewConnectionBar(state, a)
 
@@ -35,8 +35,6 @@ func NewMainWindow(a fyne.App, w fyne.Window) *MainWindow {
 	tabIPSec := NewTabIPSec(state)
 	tabBk := NewTabBackup(state, w)
 	tabClr := NewTabClear(state, w)
-
-	isMobile := fyne.CurrentDevice().IsMobile()
 
 	mw := &MainWindow{
 		App:          a,
@@ -50,36 +48,20 @@ func NewMainWindow(a fyne.App, w fyne.Window) *MainWindow {
 		TabIPSec:     tabIPSec,
 		TabBackup:    tabBk,
 		TabClear:     tabClr,
-		IsMobile:     isMobile,
 	}
 
-	logPanel.Log("Chào mừng đến với Mikrotik RouterOS 7 Automation Tool (Golang Native Edition)!")
-	logPanel.Log("Hỗ trợ đa nền tảng: Windows Desktop & Samsung Galaxy A56 Android.")
+	logPanel.Log("Chào mừng đến với Mikrotik RouterOS 7 Automation Tool (Desktop Edition)!")
 	logPanel.Log("Chọn phương thức kết nối (REST API hoặc SSH) rồi nhấn 'Kết nối'.")
 
 	return mw
 }
 
-// ShowMainView switches the current window content to the main application interface.
+// ShowMainView renders the desktop interface with a wide connection bar, tabs, and resizable spacious log panel.
 func (mw *MainWindow) ShowMainView() {
-	if mw.IsMobile {
-		mw.SetMobileLayout()
-	} else {
-		mw.SetDesktopLayout()
-	}
-}
+	mw.Window.Resize(fyne.NewSize(1020, 850))
+	mw.Window.CenterOnScreen()
 
-// SetDesktopLayout renders the full desktop layout with wide connection bar and bottom log panel.
-func (mw *MainWindow) SetDesktopLayout() {
-	mw.IsMobile = false
-	if !fyne.CurrentDevice().IsMobile() {
-		mw.Window.Resize(fyne.NewSize(980, 800))
-		mw.Window.CenterOnScreen()
-	}
-
-	connBarContent := mw.ConnBar.BuildDesktopContainer(func() {
-		mw.SetMobileLayout()
-	})
+	connBarContent := mw.ConnBar.BuildDesktopContainer()
 
 	appTabs := container.NewAppTabs(
 		container.NewTabItem("📊 Dashboard", mw.TabDashboard.BuildDesktopContainer()),
@@ -91,48 +73,25 @@ func (mw *MainWindow) SetDesktopLayout() {
 	)
 	appTabs.SetTabLocation(container.TabLocationTop)
 
-	content := container.NewBorder(
-		connBarContent,
-		mw.LogPanel.Container(),
-		nil,
-		nil,
-		appTabs,
-	)
+	// Resizable vertical split: 65% Tabs, 35% Logs
+	mw.Split = container.NewVSplit(appTabs, mw.LogPanel.Container())
+	mw.Split.SetOffset(0.65)
 
-	mw.Window.SetContent(content)
-}
-
-// SetMobileLayout renders the mobile-optimized layout designed for Samsung Galaxy A56 (19.5:9 portrait ratio).
-func (mw *MainWindow) SetMobileLayout() {
-	mw.IsMobile = true
-	if !fyne.CurrentDevice().IsMobile() {
-		// Simulation / Preview on PC: 412x846 mimics Samsung Galaxy A56 (1080x2340 FHD+ @ 2.625 density)
-		mw.Window.Resize(fyne.NewSize(412, 846))
-		mw.Window.CenterOnScreen()
-	}
-
-	mobileHeader := mw.ConnBar.BuildMobileHeader(mw.Window, func() {
-		mw.SetDesktopLayout()
+	mw.LogPanel.SetSplitController(func(mode int) {
+		switch mode {
+		case 0: // Normal / Default
+			mw.Split.SetOffset(0.65)
+		case 1: // Maximize logs
+			mw.Split.SetOffset(0.20)
+		}
 	})
 
-	// Wrap each tab content in container.NewVScroll for smooth mobile scrolling
-	mobileTabs := container.NewAppTabs(
-		container.NewTabItem("📊 Giám Sát", container.NewVScroll(mw.TabDashboard.BuildMobileContainer())),
-		container.NewTabItem("🌐 Mạng", container.NewVScroll(mw.TabNetwork.BuildMobileContainer())),
-		container.NewTabItem("🔒 Bảo Mật", container.NewVScroll(mw.TabSecurity.BuildMobileContainer())),
-		container.NewTabItem("🔐 VPN", container.NewVScroll(mw.TabIPSec.BuildMobileContainer())),
-		container.NewTabItem("💾 Sao Lưu", container.NewVScroll(mw.TabBackup.BuildMobileContainer())),
-		container.NewTabItem("🗑️ Xoá", container.NewVScroll(mw.TabClear.BuildMobileContainer())),
-		container.NewTabItem("📜 Log", mw.LogPanel.Container()),
-	)
-	mobileTabs.SetTabLocation(container.TabLocationBottom)
-
 	content := container.NewBorder(
-		mobileHeader,
+		connBarContent,
 		nil,
 		nil,
 		nil,
-		mobileTabs,
+		mw.Split,
 	)
 
 	mw.Window.SetContent(content)

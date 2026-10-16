@@ -111,25 +111,6 @@ func (ti *TabIPSec) BuildDesktopContainer() fyne.CanvasObject {
 	)
 }
 
-func (ti *TabIPSec) BuildMobileContainer() fyne.CanvasObject {
-	return container.NewVBox(
-		widget.NewLabelWithStyle("🔐 Cấu Hình IPSec VPN", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabelWithStyle("1. IP Router Đầu Xa (Peer / DDNS):", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		ti.peerBox,
-		widget.NewSeparator(),
-		widget.NewLabelWithStyle("2. Pre-Shared Key (Mật khẩu):", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		ti.entryPSK,
-		widget.NewSeparator(),
-		widget.NewLabelWithStyle("3. Dải Mạng Nội Bộ (Local Subnets):", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		ti.localBox,
-		widget.NewSeparator(),
-		widget.NewLabelWithStyle("4. Dải Mạng Đầu Xa (Remote Subnets):", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		ti.entryRemote,
-		widget.NewSeparator(),
-		container.NewPadded(ti.btnApply),
-	)
-}
-
 func (ti *TabIPSec) Container() fyne.CanvasObject {
 	return ti.BuildDesktopContainer()
 }

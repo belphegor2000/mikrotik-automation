@@ -12,25 +12,24 @@ import (
 )
 
 type TabDashboard struct {
-	state       *AppState
-	window      fyne.Window
-	container   *fyne.Container
-	lblIdentity *widget.Label
-	lblBoard    *widget.Label
-	lblVersion  *widget.Label
-	lblUptime   *widget.Label
-	progCPU     *widget.ProgressBar
-	lblCPU      *widget.Label
-	progRAM     *widget.ProgressBar
-	lblRAM      *widget.Label
-	progHDD     *widget.ProgressBar
-	lblHDD      *widget.Label
-	ifaceList       *widget.List
-	ifaceListMobile *widget.List
-	ifaceData       []dashboard.InterfaceItem
-	btnRefresh      *widget.Button
-	btnReboot       *widget.Button
-	cardHardware    *fyne.Container
+	state        *AppState
+	window       fyne.Window
+	container    *fyne.Container
+	lblIdentity  *widget.Label
+	lblBoard     *widget.Label
+	lblVersion   *widget.Label
+	lblUptime    *widget.Label
+	progCPU      *widget.ProgressBar
+	lblCPU       *widget.Label
+	progRAM      *widget.ProgressBar
+	lblRAM       *widget.Label
+	progHDD      *widget.ProgressBar
+	lblHDD       *widget.Label
+	ifaceList    *widget.List
+	ifaceData    []dashboard.InterfaceItem
+	btnRefresh   *widget.Button
+	btnReboot    *widget.Button
+	cardHardware *fyne.Container
 }
 
 func NewTabDashboard(state *AppState, w fyne.Window) *TabDashboard {
@@ -42,10 +41,10 @@ func NewTabDashboard(state *AppState, w fyne.Window) *TabDashboard {
 	td.lblUptime = widget.NewLabelWithStyle("--", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
 	td.cardHardware = container.NewGridWithColumns(2,
-		container.NewVBox(widget.NewLabel("Tên Router:"), td.lblIdentity),
-		container.NewVBox(widget.NewLabel("Thiết Bị / Model:"), td.lblBoard),
-		container.NewVBox(widget.NewLabel("Phiên Bản OS:"), td.lblVersion),
-		container.NewVBox(widget.NewLabel("Thời Gian Hoạt Động:"), td.lblUptime),
+		container.NewVBox(widget.NewLabelWithStyle("Tên Router:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), td.lblIdentity),
+		container.NewVBox(widget.NewLabelWithStyle("Thiết Bị / Model:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), td.lblBoard),
+		container.NewVBox(widget.NewLabelWithStyle("Phiên Bản OS:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), td.lblVersion),
+		container.NewVBox(widget.NewLabelWithStyle("Thời Gian Hoạt Động:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), td.lblUptime),
 	)
 
 	td.progCPU = widget.NewProgressBar()
@@ -93,38 +92,6 @@ func NewTabDashboard(state *AppState, w fyne.Window) *TabDashboard {
 		},
 	)
 
-	// Interfaces list (Mobile 2-line Card)
-	td.ifaceListMobile = widget.NewList(
-		func() int {
-			return len(td.ifaceData)
-		},
-		func() fyne.CanvasObject {
-			lblTop := widget.NewLabelWithStyle("Name [type]  Status", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-			lblSub := widget.NewLabelWithStyle("MAC / Comment", fyne.TextAlignLeading, fyne.TextStyle{Italic: true})
-			return container.NewVBox(lblTop, lblSub)
-		},
-		func(id widget.ListItemID, obj fyne.CanvasObject) {
-			if id >= len(td.ifaceData) {
-				return
-			}
-			item := td.ifaceData[id]
-			vbox := obj.(*fyne.Container)
-			stText := "🔴 Down"
-			if item.Disabled {
-				stText = "⚪ Disabled"
-			} else if item.Running {
-				stText = "🟢 Up"
-			}
-			vbox.Objects[0].(*widget.Label).SetText(fmt.Sprintf("%s [%s]  %s", item.Name, item.Type, stText))
-
-			subText := item.MAC
-			if item.Comment != "" {
-				subText += " • " + item.Comment
-			}
-			vbox.Objects[1].(*widget.Label).SetText(subText)
-		},
-	)
-
 	td.btnRefresh = widget.NewButton("🔄 Làm Mới Thông Số", func() {
 		td.Refresh()
 	})
@@ -154,37 +121,15 @@ func (td *TabDashboard) BuildDesktopContainer() fyne.CanvasObject {
 		container.NewVBox(
 			widget.NewLabelWithStyle("📊 Giám Sát Hệ Thống & Tài Nguyên", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 			td.cardHardware,
+			widget.NewSeparator(),
 			cardResource,
+			widget.NewSeparator(),
 			widget.NewLabelWithStyle("Danh Sách Cổng Mạng (Interfaces):", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		),
 		btnBar,
 		nil,
 		nil,
 		td.ifaceList,
-	)
-}
-
-func (td *TabDashboard) BuildMobileContainer() fyne.CanvasObject {
-	cardResource := container.NewVBox(
-		container.NewVBox(td.lblCPU, td.progCPU),
-		container.NewVBox(td.lblRAM, td.progRAM),
-		container.NewVBox(td.lblHDD, td.progHDD),
-	)
-	btnBar := container.NewVBox(
-		container.NewPadded(td.btnRefresh),
-		container.NewPadded(td.btnReboot),
-	)
-	return container.NewVBox(
-		widget.NewLabelWithStyle("📊 Giám Sát RouterOS", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		td.cardHardware,
-		widget.NewSeparator(),
-		widget.NewLabelWithStyle("Tài Nguyên Hệ Thống:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		cardResource,
-		widget.NewSeparator(),
-		btnBar,
-		widget.NewSeparator(),
-		widget.NewLabelWithStyle("Danh Sách Cổng Mạng:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		container.NewGridWrap(fyne.NewSize(360, 260), td.ifaceListMobile),
 	)
 }
 
@@ -231,9 +176,6 @@ func (td *TabDashboard) Refresh() {
 			if err2 == nil {
 				td.ifaceData = ifaces
 				td.ifaceList.Refresh()
-				if td.ifaceListMobile != nil {
-					td.ifaceListMobile.Refresh()
-				}
 			}
 			td.state.Log("✓ Đã cập nhật thông số Dashboard thành công.")
 		})
