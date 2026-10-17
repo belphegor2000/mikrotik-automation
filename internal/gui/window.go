@@ -33,6 +33,12 @@ func NewMainWindow(a fyne.App, w fyne.Window) *MainWindow {
 
 	tabDash := NewTabDashboard(state, w)
 	tabNet := NewTabNetwork(state, w)
+	tabNet.GetConnectedHost = func() string {
+		return connBar.GetConnectedHost()
+	}
+	tabNet.OnHostChanged = func(newHost string, onDone func(bool)) {
+		connBar.ReconnectToHost(newHost, onDone)
+	}
 	tabSec := NewTabSecurity(state)
 	tabIPSec := NewTabIPSec(state)
 	tabBk := NewTabBackup(state, w)

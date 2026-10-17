@@ -11,12 +11,15 @@ import (
 )
 
 type NetworkDeployParams struct {
-	WANCount int
-	User1    string
-	Pass1    string
-	User2    string
-	Pass2    string
-	VLANs    []vlan.VLANEntry
+	WANCount   int
+	User1      string
+	Pass1      string
+	User2      string
+	Pass2      string
+	BridgeIP   string
+	EnableDHCP bool
+	DNSServers string
+	VLANs      []vlan.VLANEntry
 }
 
 type Orchestrator struct {
@@ -54,13 +57,18 @@ func (o *Orchestrator) DeployNetwork(p NetworkDeployParams) error {
 	o.log(fmt.Sprintf("  ✓ [BƯỚC 1/3] Cấu hình PPPoE (%d đường) thành công!", p.WANCount))
 
 	// Step 2: Bridge
-	o.log("\n▶ [BƯỚC 2/3] TẠO BRIDGE bridgeVLAN...")
+	o.log("\n▶ [BƯỚC 2/3] CẤU HÌNH BRIDGE bridgeVLAN, IP, DHCP & DNS...")
 	bridgeCfg := bridge.NewConfigurator(o.client, o.logFn)
-	ports, err := bridgeCfg.CreateBridge(p.WANCount)
+	ports, routerIP, err := bridgeCfg.ConfigureBridge(bridge.BridgeConfigParams{
+		WANCount:   p.WANCount,
+		BridgeIP:   p.BridgeIP,
+		EnableDHCP: p.EnableDHCP,
+		DNSServers: p.DNSServers,
+	})
 	if err != nil {
-		return fmt.Errorf("bước 2 (Tạo Bridge) thất bại: %w", err)
+		return fmt.Errorf("bước 2 (Cấu hình Bridge) thất bại: %w", err)
 	}
-	o.log(fmt.Sprintf("  ✓ [BƯỚC 2/3] Bridge bridgeVLAN đã tạo (%d ports: %s)!", len(ports), strings.Join(ports, ", ")))
+	o.log(fmt.Sprintf("  ✓ [BƯỚC 2/3] Bridge bridgeVLAN đã sẵn sàng (%d ports, IP: %s)!", len(ports), routerIP))
 
 	// Step 3: VLANs
 	o.log(fmt.Sprintf("\n▶ [BƯỚC 3/3] CẤU HÌNH %d VLANs & DHCP...", len(p.VLANs)))

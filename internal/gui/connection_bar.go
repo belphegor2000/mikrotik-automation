@@ -3,6 +3,8 @@ package gui
 import (
 	"fmt"
 	"strconv"
+	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -179,3 +181,99 @@ func (cb *ConnectionBar) disconnect() {
 	cb.btnDisconn.Disable()
 	cb.state.Log("Đã ngắt kết nối router.")
 }
+
+func (cb *ConnectionBar) GetConnectedHost() string {
+	if cb.entryHost != nil {
+		return strings.TrimSpace(cb.entryHost.Text)
+	}
+	return ""
+}
+
+// ReconnectToHost updates entryHost, closes current connection, and retries
+// connecting to newHost with multiple attempts.
+func (cb *ConnectionBar) ReconnectToHost(newHost string, onDone func(success bool)) {
+	newHost = strings.TrimSpace(newHost)
+	if newHost == "" {
+		if onDone != nil {
+			onDone(false)
+		}
+		return
+	}
+
+	fyne.Do(func() {
+		cb.entryHost.SetText(newHost)
+		cb.updateStatusText(fmt.Sprintf("🟡 Đang chuyển sang %s...", newHost))
+		cb.btnConnect.Disable()
+		cb.btnConnect.SetText("⏳ Đang kết nối lại...")
+		cb.btnDisconn.Disable()
+	})
+
+	c := cb.state.GetClient()
+	if c != nil {
+		_ = c.Disconnect()
+	}
+
+	go func() {
+		user := cb.entryUser.Text
+		pass := cb.entryPass.Text
+		port, _ := strconv.Atoi(cb.entryPort.Text)
+		if port <= 0 {
+			port = 80
+		}
+		proto := cb.selectProto.Selected
+
+		maxRetries := 6
+		retryInterval := 2500 * time.Millisecond
+
+		// Initial small pause to let router finish assigning IP
+		time.Sleep(1000 * time.Millisecond)
+
+		for attempt := 1; attempt <= maxRetries; attempt++ {
+			cb.state.Log(fmt.Sprintf("  🔄 [Lần %d/%d] Đang thử kết nối lại tới Router tại IP mới: %s...", attempt, maxRetries, newHost))
+
+			var client api.MikrotikClient
+			if proto == "SSH" {
+				client = api.NewSSHClient()
+			} else {
+				client = api.NewRESTClient()
+			}
+
+			ident, err := client.Connect(newHost, user, pass, port, false)
+			if err == nil {
+				fyne.Do(func() {
+					cb.state.SetClient(client, proto)
+					cb.state.Log(fmt.Sprintf("✓ Đã tự động kết nối lại thành công đến Router: %s (%s qua %s:%d)!", ident, proto, newHost, port))
+					statusStr := fmt.Sprintf("🟢 %s (%s)", ident, proto)
+					cb.updateStatusText(statusStr)
+					cb.btnConnect.Enable()
+					cb.btnConnect.SetText("✓ Đã kết nối")
+					cb.btnDisconn.Enable()
+
+					for _, hook := range cb.state.OnConnect {
+						hook()
+					}
+					if onDone != nil {
+						onDone(true)
+					}
+				})
+				return
+			}
+
+			if attempt < maxRetries {
+				time.Sleep(retryInterval)
+			}
+		}
+
+		fyne.Do(func() {
+			cb.state.Log(fmt.Sprintf("⚠ Không thể tự động kết nối lại tới %s sau %d lần thử. Vui lòng kiểm tra lại kết nối mạng của máy tính rồi bấm '🔌 Kết nối'.", newHost, maxRetries))
+			cb.updateStatusText("🔴 Kết nối lại thất bại")
+			cb.btnConnect.Enable()
+			cb.btnConnect.SetText("🔌 Kết nối")
+			cb.btnDisconn.Disable()
+			if onDone != nil {
+				onDone(false)
+			}
+		})
+	}()
+}
+
