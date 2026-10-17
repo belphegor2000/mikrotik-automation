@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"strings"
 )
 
 // MikrotikClient defines the common interface for RouterOS REST and SSH communication.
@@ -31,7 +32,7 @@ func RemoveByCommentHelper(c MikrotikClient, path, comment string) (int, error) 
 	}
 	count := 0
 	for _, item := range items {
-		if cmt, ok := item["comment"].(string); ok && cmt == comment {
+		if cmt, ok := item["comment"].(string); ok && (cmt == comment || strings.HasPrefix(cmt, comment)) {
 			if id, ok := item[".id"].(string); ok && id != "" {
 				if err := c.Remove(path, id); err == nil {
 					count++

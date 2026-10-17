@@ -135,14 +135,45 @@ func (c *SSHClient) ExecRaw(cmd string) (string, error) {
 	session.Stdout = &stdout
 	session.Stderr = &stderr
 
-	err = session.Run(cmd)
+	runErr := session.Run(cmd)
 	outStr := stdout.String()
 	errStr := stderr.String()
 
-	if err != nil && errStr != "" && strings.Contains(strings.ToLower(errStr), "bad command") {
-		return "", fmt.Errorf("SSH lỗi lệnh: %s", strings.TrimSpace(errStr))
+	combined := strings.TrimSpace(outStr + "\n" + errStr)
+	lower := strings.ToLower(combined)
+
+	if runErr != nil || strings.Contains(lower, "expected command name") ||
+		strings.Contains(lower, "bad command name") ||
+		strings.Contains(lower, "syntax error") ||
+		(strings.Contains(lower, "failure:") && !strings.Contains(lower, "already have")) {
+		return outStr, fmt.Errorf("SSH lỗi lệnh: %s", combined)
 	}
 	return outStr, nil
+}
+
+func parseGetOutput(output string) []map[string]interface{} {
+	var list []map[string]interface{}
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || !strings.Contains(line, "=") {
+			continue
+		}
+		item := make(map[string]interface{})
+		tokens := strings.Split(line, ";")
+		for _, token := range tokens {
+			idx := strings.Index(token, "=")
+			if idx > 0 {
+				k := token[:idx]
+				v := token[idx+1:]
+				item[k] = v
+			}
+		}
+		if len(item) > 0 {
+			list = append(list, item)
+		}
+	}
+	return list
 }
 
 func parseTerse(output string) []map[string]interface{} {
@@ -206,12 +237,26 @@ func (c *SSHClient) Get(path string) ([]map[string]interface{}, error) {
 		return []map[string]interface{}{}, nil
 	}
 
-	out, err := c.ExecRaw(cli + " print terse")
+	// File listing: use print terse to avoid reading full file contents
+	if clean == "file" {
+		out, err := c.ExecRaw(cli + " print terse")
+		if err != nil {
+			return nil, err
+		}
+		return parseTerse(out), nil
+	}
+
+	// All other tables: use :foreach get to obtain exact internal .id and full properties
+	cmd := fmt.Sprintf(`:foreach i in=[%s find] do={ :put [%s get $i] }`, cli, cli)
+	out, err := c.ExecRaw(cmd)
 	if err != nil {
+		outFallback, errFallback := c.ExecRaw(cli + " print terse")
+		if errFallback == nil {
+			return parseTerse(outFallback), nil
+		}
 		return nil, err
 	}
-	res := parseTerse(out)
-	return res, nil
+	return parseGetOutput(out), nil
 }
 
 func (c *SSHClient) GetOne(path string) (map[string]interface{}, error) {
@@ -231,11 +276,28 @@ func buildArgs(data map[string]interface{}) string {
 		if strings.HasPrefix(k, ".") {
 			continue
 		}
-		valStr := fmt.Sprintf("%v", v)
-		if strings.Contains(valStr, " ") || strings.Contains(valStr, ";") {
-			parts = append(parts, fmt.Sprintf(`%s="%s"`, k, valStr))
-		} else {
-			parts = append(parts, fmt.Sprintf(`%s=%s`, k, valStr))
+		switch val := v.(type) {
+		case bool:
+			if val {
+				parts = append(parts, fmt.Sprintf("%s=yes", k))
+			} else {
+				parts = append(parts, fmt.Sprintf("%s=no", k))
+			}
+		case int, int64, int32, float64, float32:
+			parts = append(parts, fmt.Sprintf("%s=%v", k, val))
+		default:
+			valStr := fmt.Sprintf("%v", val)
+			if valStr == "yes" || valStr == "no" {
+				parts = append(parts, fmt.Sprintf("%s=%s", k, valStr))
+			} else {
+				// Always quote string values and escape special characters (quotes, backslashes, newlines)
+				escaped := strings.ReplaceAll(valStr, `\`, `\\`)
+				escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+				escaped = strings.ReplaceAll(escaped, "\r\n", `\n`)
+				escaped = strings.ReplaceAll(escaped, "\n", `\n`)
+				escaped = strings.ReplaceAll(escaped, "\r", `\n`)
+				parts = append(parts, fmt.Sprintf(`%s="%s"`, k, escaped))
+			}
 		}
 	}
 	return strings.Join(parts, " ")
@@ -278,6 +340,12 @@ func (c *SSHClient) Run(path string, data map[string]interface{}) (map[string]in
 }
 
 func (c *SSHClient) RemoveByComment(path, comment string) (int, error) {
+	cli := restToCLI(path)
+	cmd := fmt.Sprintf(`%s remove [find where comment~"%s"]`, cli, comment)
+	_, err := c.ExecRaw(cmd)
+	if err == nil {
+		return 1, nil
+	}
 	return RemoveByCommentHelper(c, path, comment)
 }
 

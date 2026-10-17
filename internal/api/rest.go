@@ -170,7 +170,8 @@ func (c *RESTClient) Add(path string, data map[string]interface{}) (map[string]i
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", c.baseURL+"/"+cleanPath, bytes.NewBuffer(jsonData))
+	// RouterOS 7 REST API uses PUT to create new resources (returns HTTP 201 Created)
+	req, err := http.NewRequest("PUT", c.baseURL+"/"+cleanPath, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +189,22 @@ func (c *RESTClient) Add(path string, data map[string]interface{}) (map[string]i
 		return nil, err
 	}
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("POST /%s thất bại (%d): %s", cleanPath, resp.StatusCode, string(body))
+		// Fallback: try POST /.../add for command-like endpoints
+		reqPost, errPost := http.NewRequest("POST", c.baseURL+"/"+cleanPath+"/add", bytes.NewBuffer(jsonData))
+		if errPost == nil {
+			reqPost.Header.Set("Content-Type", "application/json")
+			reqPost.SetBasicAuth(c.user, c.password)
+			if respPost, errPost := c.httpClient.Do(reqPost); errPost == nil {
+				defer respPost.Body.Close()
+				if respPost.StatusCode < 400 {
+					bodyPost, _ := io.ReadAll(respPost.Body)
+					var resPost map[string]interface{}
+					_ = json.Unmarshal(bodyPost, &resPost)
+					return resPost, nil
+				}
+			}
+		}
+		return nil, fmt.Errorf("PUT /%s thất bại (%d): %s", cleanPath, resp.StatusCode, string(body))
 	}
 
 	var res map[string]interface{}
@@ -201,17 +217,20 @@ func (c *RESTClient) Set(path string, itemID string, data map[string]interface{}
 		return fmt.Errorf("chưa kết nối đến router")
 	}
 	cleanPath := strings.Trim(path, "/")
-	url := c.baseURL + "/" + cleanPath
-	if itemID != "" {
-		url += "/" + itemID
-	}
-
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequest("PATCH", url, bytes.NewBuffer(jsonData))
+	var req *http.Request
+	if itemID != "" {
+		url := fmt.Sprintf("%s/%s/%s", c.baseURL, cleanPath, itemID)
+		req, err = http.NewRequest("PATCH", url, bytes.NewBuffer(jsonData))
+	} else {
+		// Singletons like ip/dns, system/identity, ip/cloud use POST /<path>/set
+		url := fmt.Sprintf("%s/%s/set", c.baseURL, cleanPath)
+		req, err = http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	}
 	if err != nil {
 		return err
 	}
@@ -226,7 +245,7 @@ func (c *RESTClient) Set(path string, itemID string, data map[string]interface{}
 
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("PATCH %s thất bại (%d): %s", url, resp.StatusCode, string(body))
+		return fmt.Errorf("Set %s thất bại (%d): %s", cleanPath, resp.StatusCode, string(body))
 	}
 	return nil
 }

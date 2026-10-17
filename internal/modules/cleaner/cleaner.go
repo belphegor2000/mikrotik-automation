@@ -310,6 +310,18 @@ func (c *Cleaner) cleanIPSec() (int, error) {
 	count += n
 	n, _ = c.client.RemoveByComment("ip/ipsec/profile", AppComment)
 	count += n
+
+	// Remove profile-site2site by name if comment was unsupported in RouterOS
+	profiles, _ := c.client.Get("ip/ipsec/profile")
+	for _, p := range profiles {
+		if name, _ := p["name"].(string); name == "profile-site2site" || name == "ikev2-profile" {
+			if id, ok := p[".id"].(string); ok && id != "" {
+				if err := c.client.Remove("ip/ipsec/profile", id); err == nil {
+					count++
+				}
+			}
+		}
+	}
 	return count, nil
 }
 

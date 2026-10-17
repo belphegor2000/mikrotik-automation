@@ -166,6 +166,35 @@ func (c *Configurator) Configure(cfg IPSecConfig) error {
 	proposalName := "proposal-site2site"
 	peerName := "peer-site2site"
 
+	// Remove existing items with same names if re-configuring
+	if existingProfiles, err := c.client.Get("ip/ipsec/profile"); err == nil {
+		for _, p := range existingProfiles {
+			if name, _ := p["name"].(string); name == profileName {
+				if id, ok := p[".id"].(string); ok && id != "" {
+					_ = c.client.Remove("ip/ipsec/profile", id)
+				}
+			}
+		}
+	}
+	if existingProposals, err := c.client.Get("ip/ipsec/proposal"); err == nil {
+		for _, p := range existingProposals {
+			if name, _ := p["name"].(string); name == proposalName {
+				if id, ok := p[".id"].(string); ok && id != "" {
+					_ = c.client.Remove("ip/ipsec/proposal", id)
+				}
+			}
+		}
+	}
+	if existingPeers, err := c.client.Get("ip/ipsec/peer"); err == nil {
+		for _, p := range existingPeers {
+			if name, _ := p["name"].(string); name == peerName {
+				if id, ok := p[".id"].(string); ok && id != "" {
+					_ = c.client.Remove("ip/ipsec/peer", id)
+				}
+			}
+		}
+	}
+
 	// 1. Profile với DPD Fast Reconnect tối ưu cho IP động
 	c.log("  ▶ [1/8] Tạo IPSec Profile (IKEv2, AES-256, SHA256, DPD Fast Reconnect)...")
 	_, err := c.client.Add("ip/ipsec/profile", map[string]interface{}{
@@ -176,7 +205,6 @@ func (c *Configurator) Configure(cfg IPSecConfig) error {
 		"nat-traversal":        "yes",
 		"dpd-interval":         "10s",
 		"dpd-maximum-failures": 3,
-		"comment":              AppComment,
 	})
 	if err != nil {
 		c.log(fmt.Sprintf("    ⚠ Không thể tạo Profile: %v", err))
