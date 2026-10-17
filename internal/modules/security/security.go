@@ -34,32 +34,60 @@ const BruteForceScriptSource = `# Auto Block Brute Force Login Failures (MK-AUTO
       :set at [:find $logMsg " from " ($at + 1)];
     };
     :if ([:typeof $at] = "num") do={
-      :local rest [:pick $logMsg ($at + 6) [:len $logMsg]];
-      :local viaPos [:find $rest " via "];
-      :local ip "";
-      :if ([:typeof $viaPos] = "num") do={
-        :set ip [:pick $rest 0 $viaPos];
-      } else={
-        :local spacePos [:find $rest " "];
-        :if ([:typeof $spacePos] = "num") do={
-          :set ip [:pick $rest 0 $spacePos];
-        } else={
-          :set ip $rest;
+      :local rawRest [:pick $logMsg ($at + 6) [:len $logMsg]];
+      
+      # Strip quotes and control characters from string
+      :local cleanStr "";
+      :for k from=0 to=([:len $rawRest] - 1) do={
+        :local ch [:pick $rawRest $k ($k + 1)];
+        :if ($ch != "\"" && $ch != "'") do={
+          :set cleanStr ($cleanStr . $ch);
         };
       };
       
-      :if ([:len $ip] > 0) do={
-        :if ([:len [/ip firewall address-list find where list=$listName address=$ip]] = 0) do={
+      # Strip leading spaces
+      :while ([:len $cleanStr] > 0 && [:pick $cleanStr 0 1] = " ") do={
+        :set cleanStr [:pick $cleanStr 1 [:len $cleanStr]];
+      };
+      
+      # Extract token up to first space or "via"
+      :local viaPos [:find $cleanStr " via "];
+      :local token "";
+      :if ([:typeof $viaPos] = "num") do={
+        :set token [:pick $cleanStr 0 $viaPos];
+      } else={
+        :local spPos [:find $cleanStr " "];
+        :if ([:typeof $spPos] = "num") do={
+          :set token [:pick $cleanStr 0 $spPos];
+        } else={
+          :set token $cleanStr;
+        };
+      };
+      
+      # Strip port if present (e.g. 192.168.1.7:54321)
+      :local colonPos [:find $token ":"];
+      :if ([:typeof $colonPos] = "num") do={
+        :set token [:pick $token 0 $colonPos];
+      };
+      
+      # Strictly validate as an IPv4 address
+      :local parsedIP [:toip $token];
+      :if ([:typeof $parsedIP] = "ip") do={
+        :local ipStr [:tostr $parsedIP];
+        :if ([:len [/ip firewall address-list find where list=$listName address=$parsedIP]] = 0) do={
           :local failureCount 0;
           :foreach j in=$logList do={
             :local jMsg [/log get $j message];
-            :if ([:typeof [:find $jMsg $ip]] = "num") do={
+            :if ([:typeof [:find $jMsg $ipStr]] = "num") do={
               :set failureCount ($failureCount + 1);
             };
           };
           :if ($failureCount > $threshold) do={
-            /ip firewall address-list add list=$listName address=$ip timeout=$blockTimeout comment=("[MK-AUTO] Blocked: " . $failureCount . " failed logins");
-            :log warning ("[MK-AUTO] Da them IP " . $ip . " vao " . $listName . " trong 30 ngay sau " . $failureCount . " lan dang nhap that bai");
+            :do {
+              :local cmt ("[MK-AUTO] Blocked: " . $failureCount . " failed logins");
+              /ip firewall address-list add list=$listName address=$parsedIP timeout=$blockTimeout comment=$cmt;
+              :log warning ("[MK-AUTO] Da them IP " . $ipStr . " vao " . $listName . " trong 30 ngay sau " . $failureCount . " lan dang nhap that bai");
+            } on-error={};
           };
         };
       };
