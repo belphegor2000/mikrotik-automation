@@ -5,6 +5,8 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+
+	"mikrotik-automation/internal/i18n"
 )
 
 type MainWindow struct {
@@ -14,6 +16,7 @@ type MainWindow struct {
 	ConnBar      *ConnectionBar
 	LogPanel     *LogPanel
 	Split        *container.Split
+	appTabs      *container.AppTabs
 	TabDashboard *TabDashboard
 	TabNetwork   *TabNetwork
 	TabSecurity  *TabSecurity
@@ -23,8 +26,13 @@ type MainWindow struct {
 }
 
 func NewMainWindow(a fyne.App, w fyne.Window) *MainWindow {
+	savedLang := a.Preferences().StringWithFallback("app_language", i18n.LangVI)
+	i18n.SetLang(savedLang)
+
 	if w == nil {
-		w = a.NewWindow("Mikrotik RouterOS 7 — Automation Tool")
+		w = a.NewWindow(i18n.T("app_title"))
+	} else {
+		w.SetTitle(i18n.T("app_title"))
 	}
 
 	logPanel := NewLogPanel(w)
@@ -58,6 +66,9 @@ func NewMainWindow(a fyne.App, w fyne.Window) *MainWindow {
 		TabClear:     tabClr,
 	}
 
+	i18n.Subscribe(mw.UpdateLanguage)
+	mw.UpdateLanguage()
+
 	logPanel.Log("Chào mừng đến với Mikrotik RouterOS 7 Automation Tool (Desktop Edition)!")
 	logPanel.Log("Chọn phương thức kết nối (REST API hoặc SSH) rồi nhấn 'Kết nối'.")
 
@@ -68,18 +79,18 @@ func NewMainWindow(a fyne.App, w fyne.Window) *MainWindow {
 func (mw *MainWindow) ShowMainView() {
 	connBarContent := mw.ConnBar.BuildDesktopContainer()
 
-	appTabs := container.NewAppTabs(
-		container.NewTabItem("📊 Dashboard", mw.TabDashboard.BuildDesktopContainer()),
-		container.NewTabItem("🌐 Cấu Hình Mạng", mw.TabNetwork.BuildDesktopContainer()),
-		container.NewTabItem("🔒 Bảo Mật", mw.TabSecurity.BuildDesktopContainer()),
-		container.NewTabItem("🔐 IPSec VPN", mw.TabIPSec.BuildDesktopContainer()),
-		container.NewTabItem("💾 Sao Lưu & Phục Hồi", mw.TabBackup.BuildDesktopContainer()),
-		container.NewTabItem("🗑️ Xoá Cấu Hình", mw.TabClear.BuildDesktopContainer()),
+	mw.appTabs = container.NewAppTabs(
+		container.NewTabItem(i18n.T("tab_dashboard"), mw.TabDashboard.BuildDesktopContainer()),
+		container.NewTabItem(i18n.T("tab_network"), mw.TabNetwork.BuildDesktopContainer()),
+		container.NewTabItem(i18n.T("tab_security"), mw.TabSecurity.BuildDesktopContainer()),
+		container.NewTabItem(i18n.T("tab_ipsec"), mw.TabIPSec.BuildDesktopContainer()),
+		container.NewTabItem(i18n.T("tab_backup"), mw.TabBackup.BuildDesktopContainer()),
+		container.NewTabItem(i18n.T("tab_clear"), mw.TabClear.BuildDesktopContainer()),
 	)
-	appTabs.SetTabLocation(container.TabLocationTop)
+	mw.appTabs.SetTabLocation(container.TabLocationTop)
 
 	// Resizable vertical split: 65% Tabs, 35% Logs
-	mw.Split = container.NewVSplit(appTabs, mw.LogPanel.Container())
+	mw.Split = container.NewVSplit(mw.appTabs, mw.LogPanel.Container())
 	mw.Split.SetOffset(0.65)
 
 	mw.LogPanel.SetSplitController(func(mode int) {
@@ -113,3 +124,45 @@ func (mw *MainWindow) ShowAndRun() {
 	mw.ShowMainView()
 	mw.Window.ShowAndRun()
 }
+
+func (mw *MainWindow) UpdateLanguage() {
+	fyne.Do(func() {
+		if mw.Window != nil {
+			mw.Window.SetTitle(i18n.T("app_title"))
+		}
+		if mw.appTabs != nil && len(mw.appTabs.Items) >= 6 {
+			mw.appTabs.Items[0].Text = i18n.T("tab_dashboard")
+			mw.appTabs.Items[1].Text = i18n.T("tab_network")
+			mw.appTabs.Items[2].Text = i18n.T("tab_security")
+			mw.appTabs.Items[3].Text = i18n.T("tab_ipsec")
+			mw.appTabs.Items[4].Text = i18n.T("tab_backup")
+			mw.appTabs.Items[5].Text = i18n.T("tab_clear")
+			mw.appTabs.Refresh()
+		}
+		if mw.ConnBar != nil {
+			mw.ConnBar.UpdateLanguage()
+		}
+		if mw.LogPanel != nil {
+			mw.LogPanel.UpdateLanguage()
+		}
+		if mw.TabDashboard != nil {
+			mw.TabDashboard.UpdateLanguage()
+		}
+		if mw.TabNetwork != nil {
+			mw.TabNetwork.UpdateLanguage()
+		}
+		if mw.TabSecurity != nil {
+			mw.TabSecurity.UpdateLanguage()
+		}
+		if mw.TabIPSec != nil {
+			mw.TabIPSec.UpdateLanguage()
+		}
+		if mw.TabBackup != nil {
+			mw.TabBackup.UpdateLanguage()
+		}
+		if mw.TabClear != nil {
+			mw.TabClear.UpdateLanguage()
+		}
+	})
+}
+

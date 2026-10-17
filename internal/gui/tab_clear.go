@@ -6,6 +6,7 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 
+	"mikrotik-automation/internal/i18n"
 	"mikrotik-automation/internal/modules/cleaner"
 )
 
@@ -13,13 +14,19 @@ type TabClear struct {
 	state     *AppState
 	window    fyne.Window
 	container *fyne.Container
+	lblTitle  *widget.Label
+	lblDesc   *widget.Label
 	btnClear  *widget.Button
 }
 
 func NewTabClear(state *AppState, w fyne.Window) *TabClear {
 	tc := &TabClear{state: state, window: w}
 
-	tc.btnClear = widget.NewButton("🗑️ Xoá Cấu Hình Tự Động (15 Bước)", func() {
+	tc.lblTitle = widget.NewLabelWithStyle(i18n.T("clr_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	tc.lblDesc = widget.NewLabel(i18n.T("clr_warn_desc"))
+	tc.lblDesc.Wrapping = fyne.TextWrapWord
+
+	tc.btnClear = widget.NewButton(i18n.T("clr_btn"), func() {
 		tc.confirmClear()
 	})
 	tc.btnClear.Importance = widget.DangerImportance
@@ -28,24 +35,9 @@ func NewTabClear(state *AppState, w fyne.Window) *TabClear {
 }
 
 func (tc *TabClear) BuildDesktopContainer() fyne.CanvasObject {
-	desc := "⚠️ Chức năng này sẽ dọn dẹp và xoá an toàn tất cả cấu hình do công cụ tạo ra theo 15 bước tuần tự:\n" +
-		"  1. DHCP Leases & Networks\n" +
-		"  2. DHCP Servers & IP Pools\n" +
-		"  3. IP Addresses của VLAN & Bridge\n" +
-		"  4. Bridge VLAN table & VLAN interfaces\n" +
-		"  5. Bridge bridgeVLAN và các port gán kèm\n" +
-		"  6. PPPoE WAN clients (pppoe-wan1, pppoe-wan2)\n" +
-		"  7. Firewall Filter, Mangle và NAT rules có tag [MK-AUTO]\n" +
-		"  8. Routing Tables và Custom Routes\n" +
-		"  9. IPSec VPN Policies, Identities, Peers, Profiles\n\n" +
-		"Các cấu hình mặc định khác của router sẽ được giữ nguyên an toàn."
-
-	lblDesc := widget.NewLabel(desc)
-	lblDesc.Wrapping = fyne.TextWrapWord
-
 	card := container.NewVBox(
-		widget.NewLabelWithStyle("🗑️ Dọn Dẹp & Xoá Cấu Hình RouterOS 7", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		lblDesc,
+		tc.lblTitle,
+		tc.lblDesc,
 		widget.NewSeparator(),
 		container.NewPadded(tc.btnClear),
 	)
@@ -56,6 +48,18 @@ func (tc *TabClear) Container() fyne.CanvasObject {
 	return tc.BuildDesktopContainer()
 }
 
+func (tc *TabClear) UpdateLanguage() {
+	if tc.lblTitle != nil {
+		tc.lblTitle.SetText(i18n.T("clr_title"))
+	}
+	if tc.lblDesc != nil {
+		tc.lblDesc.SetText(i18n.T("clr_warn_desc"))
+	}
+	if tc.btnClear != nil {
+		tc.btnClear.SetText(i18n.T("clr_btn"))
+	}
+}
+
 func (tc *TabClear) confirmClear() {
 	c := tc.state.GetClient()
 	if !c.IsConnected() {
@@ -63,16 +67,16 @@ func (tc *TabClear) confirmClear() {
 		return
 	}
 
-	dialog.ShowConfirm("Xác Nhận Xoá Cấu Hình", "Bạn có chắc chắn muốn chạy quy trình xoá 15 bước không?", func(ok bool) {
+	dialog.ShowConfirm(i18n.T("clr_confirm_title"), i18n.T("clr_confirm_msg"), func(ok bool) {
 		if !ok {
 			return
 		}
 		tc.btnClear.Disable()
-		tc.btnClear.SetText("⏳ Đang dọn dẹp...")
+		tc.btnClear.SetText(i18n.T("clr_btn_ing"))
 		go func() {
 			defer fyne.Do(func() {
 				tc.btnClear.Enable()
-				tc.btnClear.SetText("🗑️ Xoá Cấu Hình Tự Động (15 Bước)")
+				tc.btnClear.SetText(i18n.T("clr_btn"))
 			})
 			cln := cleaner.NewCleaner(c, tc.state.Log)
 			cln.CleanAll()

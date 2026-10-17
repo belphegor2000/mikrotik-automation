@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 
+	"mikrotik-automation/internal/i18n"
 	"mikrotik-automation/internal/modules/backup"
 )
 
@@ -15,9 +16,16 @@ type TabBackup struct {
 	state          *AppState
 	window         fyne.Window
 	container      *fyne.Container
-	entryBkName    *widget.Entry
+	lblMainTitle   *widget.Label
+	lblRSCTitle    *widget.Label
+	lblRSCDesc     *widget.Label
 	btnExportRSC   *widget.Button
+	lblBKTitle     *widget.Label
+	lblBKDesc      *widget.Label
+	lblBKNameTitle *widget.Label
+	entryBkName    *widget.Entry
 	btnCreateBK    *widget.Button
+	lblFilesTitle  *widget.Label
 	btnRefreshList *widget.Button
 	filesList      *widget.List
 	filesData      []backup.BackupItem
@@ -26,29 +34,41 @@ type TabBackup struct {
 func NewTabBackup(state *AppState, w fyne.Window) *TabBackup {
 	tb := &TabBackup{state: state, window: w}
 
+	tb.lblMainTitle = widget.NewLabelWithStyle(i18n.T("bk_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+
 	// 1. Export script
-	tb.btnExportRSC = widget.NewButton("💾 Tải File Cấu Hình (.rsc) Về Máy Tính", func() {
+	tb.lblRSCTitle = widget.NewLabelWithStyle(i18n.T("bk_export_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	tb.lblRSCDesc = widget.NewLabel("Xuất cấu hình dạng lệnh CLI text để xem lại hoặc nạp sang thiết bị khác.")
+	tb.lblRSCDesc.Wrapping = fyne.TextWrapWord
+
+	tb.btnExportRSC = widget.NewButton(i18n.T("bk_export_btn"), func() {
 		tb.exportRSC()
 	})
 	tb.btnExportRSC.Importance = widget.HighImportance
 
 	// 2. Binary backup
+	tb.lblBKTitle = widget.NewLabelWithStyle(i18n.T("bk_create_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	tb.lblBKDesc = widget.NewLabel("Lưu trọn vẹn trạng thái hệ thống (Users, Mật khẩu, MAC, Certificates).")
+	tb.lblBKDesc.Wrapping = fyne.TextWrapWord
+
+	tb.lblBKNameTitle = widget.NewLabelWithStyle(i18n.T("bk_name_label"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	tb.entryBkName = widget.NewEntry()
 	tb.entryBkName.SetText("backup_auto")
 
-	tb.btnCreateBK = widget.NewButton("📦 Tạo Bản Sao Lưu (.backup) Trên Router", func() {
+	tb.btnCreateBK = widget.NewButton(i18n.T("bk_create_btn"), func() {
 		tb.createBackup()
 	})
 	tb.btnCreateBK.Importance = widget.HighImportance
 
 	// 3. Router files list (Desktop 3-column table)
+	tb.lblFilesTitle = widget.NewLabelWithStyle(i18n.T("bk_list_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	tb.filesData = make([]backup.BackupItem, 0)
 	tb.filesList = widget.NewList(
 		func() int {
 			return len(tb.filesData)
 		},
 		func() fyne.CanvasObject {
-			btn := widget.NewButton("Phục Hồi", nil)
+			btn := widget.NewButton(i18n.T("bk_restore_btn"), nil)
 			btn.Importance = widget.WarningImportance
 			return container.NewGridWithColumns(3,
 				widget.NewLabel("File Name"),
@@ -66,13 +86,14 @@ func NewTabBackup(state *AppState, w fyne.Window) *TabBackup {
 			box.Objects[1].(*widget.Label).SetText(item.Type)
 
 			btn := box.Objects[2].(*widget.Button)
+			btn.SetText(i18n.T("bk_restore_btn"))
 			btn.OnTapped = func() {
 				tb.confirmRestore(item.Name)
 			}
 		},
 	)
 
-	tb.btnRefreshList = widget.NewButton("🔄 Làm mới danh sách file", func() {
+	tb.btnRefreshList = widget.NewButton(i18n.T("bk_refresh_btn"), func() {
 		tb.refreshFiles()
 	})
 
@@ -80,32 +101,28 @@ func NewTabBackup(state *AppState, w fyne.Window) *TabBackup {
 }
 
 func (tb *TabBackup) BuildDesktopContainer() fyne.CanvasObject {
-	lblRSC := widget.NewLabel("Xuất cấu hình dạng lệnh CLI text để xem lại hoặc nạp sang thiết bị khác.")
-	lblRSC.Wrapping = fyne.TextWrapWord
 	cardRSC := container.NewVBox(
-		widget.NewLabelWithStyle("1. Xuất Cấu Hình Script (.rsc)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		lblRSC,
+		tb.lblRSCTitle,
+		tb.lblRSCDesc,
 		tb.btnExportRSC,
 	)
 
-	lblBK := widget.NewLabel("Lưu trọn vẹn trạng thái hệ thống (Users, Mật khẩu, MAC, Certificates).")
-	lblBK.Wrapping = fyne.TextWrapWord
 	cardBK := container.NewVBox(
-		widget.NewLabelWithStyle("2. Bản Sao Lưu Toàn Diện (.backup)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		lblBK,
-		container.NewBorder(nil, nil, widget.NewLabelWithStyle("Tên file:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), nil, tb.entryBkName),
+		tb.lblBKTitle,
+		tb.lblBKDesc,
+		container.NewBorder(nil, nil, tb.lblBKNameTitle, nil, tb.entryBkName),
 		tb.btnCreateBK,
 	)
 
 	cardFiles := container.NewBorder(
-		container.NewBorder(nil, nil, widget.NewLabelWithStyle("3. Danh Sách File Sao Lưu Trên Router:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), tb.btnRefreshList),
+		container.NewBorder(nil, nil, tb.lblFilesTitle, tb.btnRefreshList),
 		nil, nil, nil,
 		tb.filesList,
 	)
 
 	return container.NewBorder(
 		container.NewVBox(
-			widget.NewLabelWithStyle("💾 Sao Lưu & Phục Hồi Cấu Hình", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			tb.lblMainTitle,
 			container.NewGridWithColumns(2, cardRSC, cardBK),
 			widget.NewSeparator(),
 		),
@@ -116,6 +133,36 @@ func (tb *TabBackup) BuildDesktopContainer() fyne.CanvasObject {
 
 func (tb *TabBackup) Container() fyne.CanvasObject {
 	return tb.BuildDesktopContainer()
+}
+
+func (tb *TabBackup) UpdateLanguage() {
+	if tb.lblMainTitle != nil {
+		tb.lblMainTitle.SetText(i18n.T("bk_title"))
+	}
+	if tb.lblRSCTitle != nil {
+		tb.lblRSCTitle.SetText(i18n.T("bk_export_title"))
+	}
+	if tb.btnExportRSC != nil {
+		tb.btnExportRSC.SetText(i18n.T("bk_export_btn"))
+	}
+	if tb.lblBKTitle != nil {
+		tb.lblBKTitle.SetText(i18n.T("bk_create_title"))
+	}
+	if tb.lblBKNameTitle != nil {
+		tb.lblBKNameTitle.SetText(i18n.T("bk_name_label"))
+	}
+	if tb.btnCreateBK != nil {
+		tb.btnCreateBK.SetText(i18n.T("bk_create_btn"))
+	}
+	if tb.lblFilesTitle != nil {
+		tb.lblFilesTitle.SetText(i18n.T("bk_list_title"))
+	}
+	if tb.btnRefreshList != nil {
+		tb.btnRefreshList.SetText(i18n.T("bk_refresh_btn"))
+	}
+	if tb.filesList != nil {
+		tb.filesList.Refresh()
+	}
 }
 
 func (tb *TabBackup) exportRSC() {
@@ -187,8 +234,8 @@ func (tb *TabBackup) confirmRestore(fileName string) {
 		return
 	}
 
-	msg := fmt.Sprintf("Bạn có chắc chắn muốn phục hồi cấu hình từ '%s' không?\nRouter sẽ tự động khởi động lại!", fileName)
-	dialog.ShowConfirm("Khôi Phục Cấu Hình", msg, func(ok bool) {
+	msg := i18n.T("bk_restore_confirm_msg", fileName)
+	dialog.ShowConfirm(i18n.T("bk_restore_confirm_title"), msg, func(ok bool) {
 		if !ok {
 			return
 		}

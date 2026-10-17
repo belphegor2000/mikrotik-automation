@@ -5,12 +5,17 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 
+	"mikrotik-automation/internal/i18n"
 	"mikrotik-automation/internal/modules/security"
 )
 
 type TabSecurity struct {
 	state         *AppState
 	container     *fyne.Container
+	lblMainTitle  *widget.Label
+	lblSrvTitle   *widget.Label
+	lblFWTitle    *widget.Label
+	lblFWDesc     *widget.Label
 	checks        map[string]*widget.Check
 	btnDisable    *widget.Button
 	btnFW         *widget.Button
@@ -25,10 +30,13 @@ func NewTabSecurity(state *AppState) *TabSecurity {
 		checks: make(map[string]*widget.Check),
 	}
 
+	ts.lblMainTitle = widget.NewLabelWithStyle(i18n.T("sec_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+
 	// Cột 1: Danh sách dịch vụ cần tắt
 	services := security.DefaultInsecureServices
+	ts.lblSrvTitle = widget.NewLabelWithStyle(i18n.T("sec_srv_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	serviceBoxes := container.NewVBox(
-		widget.NewLabelWithStyle("1. Tắt Dịch Vụ Không An Toàn:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		ts.lblSrvTitle,
 	)
 
 	for _, sv := range services {
@@ -38,34 +46,30 @@ func NewTabSecurity(state *AppState) *TabSecurity {
 		serviceBoxes.Add(chk)
 	}
 
-	ts.btnDisable = widget.NewButton("⚠️ Tắt Dịch Vụ Đã Chọn", func() {
+	ts.btnDisable = widget.NewButton(i18n.T("sec_srv_btn"), func() {
 		ts.disableServices()
 	})
 	ts.btnDisable.Importance = widget.WarningImportance
 
 	// Cột 2: Firewall Filter & Chống Brute Force
-	descFW := "Thiết lập quy tắc tường lửa và tự động bảo vệ RouterOS:\n" +
-		"• Chấp nhận kết nối Established, Related, Untracked\n" +
-		"• Chặn kết nối Invalid & chặn trái phép từ WAN\n" +
-		"• Tự động chống Brute Force: Quét log mỗi 5 phút\n" +
-		"• Thất bại > 5 lần tự động thêm vào Blacklist (30 ngày)."
-
-	ts.btnFW = widget.NewButton("🔒 Áp Dụng Firewall Filter", func() {
+	ts.btnFW = widget.NewButton(i18n.T("sec_fw_btn"), func() {
 		ts.applyFirewall()
 	})
 	ts.btnFW.Importance = widget.HighImportance
 
-	ts.btnBruteForce = widget.NewButton("🛡️ Chống Brute Force (Blacklist)", func() {
+	ts.btnBruteForce = widget.NewButton(i18n.T("sec_bf_btn"), func() {
 		ts.applyBruteForce()
 	})
 	ts.btnBruteForce.Importance = widget.HighImportance
 
-	lblFW := widget.NewLabel(descFW)
-	lblFW.Wrapping = fyne.TextWrapWord
+	ts.lblFWDesc = widget.NewLabel(i18n.T("sec_fw_desc"))
+	ts.lblFWDesc.Wrapping = fyne.TextWrapWord
+
+	ts.lblFWTitle = widget.NewLabelWithStyle(i18n.T("sec_fw_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
 	ts.fwBoxes = container.NewVBox(
-		widget.NewLabelWithStyle("2. Firewall Filter & Chống Brute Force:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		lblFW,
+		ts.lblFWTitle,
+		ts.lblFWDesc,
 	)
 	ts.serviceBoxes = serviceBoxes
 
@@ -75,10 +79,34 @@ func NewTabSecurity(state *AppState) *TabSecurity {
 func (ts *TabSecurity) BuildDesktopContainer() fyne.CanvasObject {
 	buttonsRow := container.NewGridWithColumns(3, ts.btnDisable, ts.btnFW, ts.btnBruteForce)
 	return container.NewVBox(
-		widget.NewLabelWithStyle("🔒 Bảo Mật & Tường Lửa RouterOS 7", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		ts.lblMainTitle,
 		container.NewGridWithColumns(2, ts.serviceBoxes, ts.fwBoxes),
 		buttonsRow,
 	)
+}
+
+func (ts *TabSecurity) UpdateLanguage() {
+	if ts.lblMainTitle != nil {
+		ts.lblMainTitle.SetText(i18n.T("sec_title"))
+	}
+	if ts.lblSrvTitle != nil {
+		ts.lblSrvTitle.SetText(i18n.T("sec_srv_title"))
+	}
+	if ts.btnDisable != nil {
+		ts.btnDisable.SetText(i18n.T("sec_srv_btn"))
+	}
+	if ts.lblFWTitle != nil {
+		ts.lblFWTitle.SetText(i18n.T("sec_fw_title"))
+	}
+	if ts.lblFWDesc != nil {
+		ts.lblFWDesc.SetText(i18n.T("sec_fw_desc"))
+	}
+	if ts.btnFW != nil {
+		ts.btnFW.SetText(i18n.T("sec_fw_btn"))
+	}
+	if ts.btnBruteForce != nil {
+		ts.btnBruteForce.SetText(i18n.T("sec_bf_btn"))
+	}
 }
 
 func (ts *TabSecurity) Container() fyne.CanvasObject {

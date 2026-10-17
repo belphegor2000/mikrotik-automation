@@ -10,6 +10,8 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"mikrotik-automation/internal/i18n"
 )
 
 type logLayout struct {
@@ -87,6 +89,7 @@ type LogPanel struct {
 	entry           *ReadOnlyLogEntry
 	scroll          *container.Scroll
 	container       *fyne.Container
+	headerLabel     *widget.Label
 	btnExpand       *widget.Button
 	btnCopy         *widget.Button
 	btnClear        *widget.Button
@@ -108,33 +111,33 @@ func NewLogPanel(w fyne.Window) *LogPanel {
 		expandedState: 0,
 	}
 
-	headerLabel := widget.NewLabelWithStyle("📝 Nhật Ký Hoạt Động (Logs)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	lp.headerLabel = widget.NewLabelWithStyle(i18n.T("log_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
-	lp.btnCopy = widget.NewButtonWithIcon("Sao chép", theme.ContentCopyIcon(), func() {
+	lp.btnCopy = widget.NewButtonWithIcon(i18n.T("log_copy"), theme.ContentCopyIcon(), func() {
 		lp.mu.Lock()
 		fullText := strings.Join(lp.logLines, "\n")
 		lp.mu.Unlock()
 		if lp.window != nil {
 			lp.window.Clipboard().SetContent(fullText)
-			lp.btnCopy.SetText("✓ Đã chép!")
+			lp.btnCopy.SetText(i18n.T("log_copied"))
 			time.AfterFunc(2*time.Second, func() {
 				fyne.Do(func() {
-					lp.btnCopy.SetText("Sao chép")
+					lp.btnCopy.SetText(i18n.T("log_copy"))
 				})
 			})
 		}
 	})
 
-	lp.btnClear = widget.NewButtonWithIcon("Xoá log", theme.DeleteIcon(), func() {
+	lp.btnClear = widget.NewButtonWithIcon(i18n.T("log_clear"), theme.DeleteIcon(), func() {
 		lp.Clear()
 	})
 
-	lp.btnExpand = widget.NewButton("▲ Mở rộng", func() {
+	lp.btnExpand = widget.NewButton(i18n.T("log_expand"), func() {
 		lp.cycleExpand()
 	})
 
 	controls := container.NewHBox(lp.btnCopy, lp.btnClear, lp.btnExpand)
-	topBar := container.NewBorder(nil, nil, headerLabel, controls)
+	topBar := container.NewBorder(nil, nil, lp.headerLabel, controls)
 
 	lp.container = container.New(&logLayout{minHeight: 220}, topBar, scroll)
 	return lp
@@ -154,12 +157,31 @@ func (l *LogPanel) cycleExpand() {
 	}
 	if l.expandedState == 0 {
 		l.expandedState = 1
-		l.btnExpand.SetText("▼ Mặc định")
+		l.btnExpand.SetText(i18n.T("log_default"))
 		l.splitController(1) // Maximized
 	} else {
 		l.expandedState = 0
-		l.btnExpand.SetText("▲ Mở rộng")
+		l.btnExpand.SetText(i18n.T("log_expand"))
 		l.splitController(0) // Default
+	}
+}
+
+func (l *LogPanel) UpdateLanguage() {
+	if l.headerLabel != nil {
+		l.headerLabel.SetText(i18n.T("log_title"))
+	}
+	if l.btnCopy != nil {
+		l.btnCopy.SetText(i18n.T("log_copy"))
+	}
+	if l.btnClear != nil {
+		l.btnClear.SetText(i18n.T("log_clear"))
+	}
+	if l.btnExpand != nil {
+		if l.expandedState == 1 {
+			l.btnExpand.SetText(i18n.T("log_default"))
+		} else {
+			l.btnExpand.SetText(i18n.T("log_expand"))
+		}
 	}
 }
 

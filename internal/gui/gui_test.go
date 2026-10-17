@@ -113,3 +113,55 @@ func TestTabNetworkVLANAndBridgeRows(t *testing.T) {
 	}
 }
 
+func TestLanguageSwitchingInGUI(t *testing.T) {
+	a := test.NewApp()
+	a.Preferences().SetString("app_language", "vi")
+	w := test.NewWindow(nil)
+
+	mw := NewMainWindow(a, w)
+	mw.ShowMainView()
+
+	// Initial check: Vietnamese
+	if mw.ConnBar.btnLang.Text != "🌐 English" {
+		t.Errorf("Expected btnLang to show '🌐 English' in VI mode, got '%s'", mw.ConnBar.btnLang.Text)
+	}
+	if mw.appTabs.Items[1].Text != "🌐 Cấu Hình Mạng" {
+		t.Errorf("Expected tab 1 to be '🌐 Cấu Hình Mạng', got '%s'", mw.appTabs.Items[1].Text)
+	}
+	if mw.TabSecurity.btnDisable.Text != "🚫 Tắt Dịch Vụ Không Dùng" {
+		t.Errorf("Expected sec_srv_btn in VI, got '%s'", mw.TabSecurity.btnDisable.Text)
+	}
+
+	// Toggle language to English
+	mw.ConnBar.toggleLanguage()
+
+	if mw.ConnBar.btnLang.Text != "🌐 Tiếng Việt" {
+		t.Errorf("Expected btnLang to show '🌐 Tiếng Việt' in EN mode, got '%s'", mw.ConnBar.btnLang.Text)
+	}
+	if mw.appTabs.Items[1].Text != "🌐 Network Setup" {
+		t.Errorf("Expected tab 1 to be '🌐 Network Setup', got '%s'", mw.appTabs.Items[1].Text)
+	}
+	if mw.TabSecurity.btnDisable.Text != "🚫 Disable Insecure Services" {
+		t.Errorf("Expected sec_srv_btn in EN, got '%s'", mw.TabSecurity.btnDisable.Text)
+	}
+	if mw.TabClear.btnClear.Text != "🗑️ Run 15-Step Automated Reset" {
+		t.Errorf("Expected clr_btn in EN, got '%s'", mw.TabClear.btnClear.Text)
+	}
+	if pref := a.Preferences().String("app_language"); pref != "en" {
+		t.Errorf("Expected preference 'app_language' to be 'en', got '%s'", pref)
+	}
+
+	// Toggle language back to Vietnamese
+	mw.ConnBar.toggleLanguage()
+
+	if mw.ConnBar.btnLang.Text != "🌐 English" {
+		t.Errorf("Expected btnLang to show '🌐 English' after toggle back, got '%s'", mw.ConnBar.btnLang.Text)
+	}
+	if mw.appTabs.Items[1].Text != "🌐 Cấu Hình Mạng" {
+		t.Errorf("Expected tab 1 to revert to '🌐 Cấu Hình Mạng', got '%s'", mw.appTabs.Items[1].Text)
+	}
+	if pref := a.Preferences().String("app_language"); pref != "vi" {
+		t.Errorf("Expected preference 'app_language' to be 'vi', got '%s'", pref)
+	}
+}
+

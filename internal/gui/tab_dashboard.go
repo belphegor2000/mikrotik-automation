@@ -8,43 +8,60 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 
+	"mikrotik-automation/internal/i18n"
 	"mikrotik-automation/internal/modules/dashboard"
 )
 
 type TabDashboard struct {
-	state        *AppState
-	window       fyne.Window
-	container    *fyne.Container
-	lblIdentity  *widget.Label
-	lblBoard     *widget.Label
-	lblVersion   *widget.Label
-	lblUptime    *widget.Label
-	progCPU      *widget.ProgressBar
-	lblCPU       *widget.Label
-	progRAM      *widget.ProgressBar
-	lblRAM       *widget.Label
-	progHDD      *widget.ProgressBar
-	lblHDD       *widget.Label
-	ifaceList    *widget.List
-	ifaceData    []dashboard.InterfaceItem
-	btnRefresh   *widget.Button
-	btnReboot    *widget.Button
-	cardHardware *fyne.Container
+	state            *AppState
+	window           fyne.Window
+	container        *fyne.Container
+	lblTitle         *widget.Label
+	lblIdentityTitle *widget.Label
+	lblIdentity      *widget.Label
+	lblBoardTitle    *widget.Label
+	lblBoard         *widget.Label
+	lblVersionTitle  *widget.Label
+	lblVersion       *widget.Label
+	lblUptimeTitle   *widget.Label
+	lblUptime        *widget.Label
+	lblIfaceTitle    *widget.Label
+	progCPU          *widget.ProgressBar
+	lblCPU           *widget.Label
+	progRAM          *widget.ProgressBar
+	lblRAM           *widget.Label
+	progHDD          *widget.ProgressBar
+	lblHDD           *widget.Label
+	ifaceList        *widget.List
+	ifaceData        []dashboard.InterfaceItem
+	btnRefresh       *widget.Button
+	btnReboot        *widget.Button
+	cardHardware     *fyne.Container
 }
 
 func NewTabDashboard(state *AppState, w fyne.Window) *TabDashboard {
 	td := &TabDashboard{state: state, window: w}
 
+	td.lblTitle = widget.NewLabelWithStyle(i18n.T("dash_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	td.lblIdentityTitle = widget.NewLabelWithStyle(i18n.T("dash_model"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	td.lblIdentity = widget.NewLabelWithStyle("--", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+
+	td.lblBoardTitle = widget.NewLabelWithStyle(i18n.T("dash_card_dev"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	td.lblBoard = widget.NewLabelWithStyle("--", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+
+	td.lblVersionTitle = widget.NewLabelWithStyle(i18n.T("dash_version"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	td.lblVersion = widget.NewLabel("--")
+
+	td.lblUptimeTitle = widget.NewLabelWithStyle(i18n.T("dash_uptime"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	td.lblUptime = widget.NewLabelWithStyle("--", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
+	td.lblIfaceTitle = widget.NewLabelWithStyle(i18n.T("dash_iface_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+
 	td.cardHardware = container.NewGridWithColumns(2,
-		container.NewVBox(widget.NewLabelWithStyle("Tên Router:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), td.lblIdentity),
-		container.NewVBox(widget.NewLabelWithStyle("Thiết Bị / Model:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), td.lblBoard),
-		container.NewVBox(widget.NewLabelWithStyle("Phiên Bản OS:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), td.lblVersion),
-		container.NewVBox(widget.NewLabelWithStyle("Thời Gian Hoạt Động:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), td.lblUptime),
+		container.NewVBox(td.lblIdentityTitle, td.lblIdentity),
+		container.NewVBox(td.lblBoardTitle, td.lblBoard),
+		container.NewVBox(td.lblVersionTitle, td.lblVersion),
+		container.NewVBox(td.lblUptimeTitle, td.lblUptime),
 	)
 
 	td.progCPU = widget.NewProgressBar()
@@ -92,12 +109,12 @@ func NewTabDashboard(state *AppState, w fyne.Window) *TabDashboard {
 		},
 	)
 
-	td.btnRefresh = widget.NewButton("🔄 Làm Mới Thông Số", func() {
+	td.btnRefresh = widget.NewButton(i18n.T("dash_refresh"), func() {
 		td.Refresh()
 	})
 	td.btnRefresh.Importance = widget.HighImportance
 
-	td.btnReboot = widget.NewButton("⚠️ Khởi Động Lại Router (Reboot)", func() {
+	td.btnReboot = widget.NewButton(i18n.T("dash_reboot"), func() {
 		td.confirmReboot()
 	})
 	td.btnReboot.Importance = widget.DangerImportance
@@ -119,12 +136,12 @@ func (td *TabDashboard) BuildDesktopContainer() fyne.CanvasObject {
 	btnBar := container.NewBorder(nil, nil, td.btnRefresh, td.btnReboot)
 	return container.NewBorder(
 		container.NewVBox(
-			widget.NewLabelWithStyle("📊 Giám Sát Hệ Thống & Tài Nguyên", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			td.lblTitle,
 			td.cardHardware,
 			widget.NewSeparator(),
 			cardResource,
 			widget.NewSeparator(),
-			widget.NewLabelWithStyle("Danh Sách Cổng Mạng (Interfaces):", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			td.lblIfaceTitle,
 		),
 		btnBar,
 		nil,
@@ -135,6 +152,33 @@ func (td *TabDashboard) BuildDesktopContainer() fyne.CanvasObject {
 
 func (td *TabDashboard) Container() fyne.CanvasObject {
 	return td.BuildDesktopContainer()
+}
+
+func (td *TabDashboard) UpdateLanguage() {
+	if td.lblTitle != nil {
+		td.lblTitle.SetText(i18n.T("dash_title"))
+	}
+	if td.lblIdentityTitle != nil {
+		td.lblIdentityTitle.SetText(i18n.T("dash_model"))
+	}
+	if td.lblBoardTitle != nil {
+		td.lblBoardTitle.SetText(i18n.T("dash_card_dev"))
+	}
+	if td.lblVersionTitle != nil {
+		td.lblVersionTitle.SetText(i18n.T("dash_version"))
+	}
+	if td.lblUptimeTitle != nil {
+		td.lblUptimeTitle.SetText(i18n.T("dash_uptime"))
+	}
+	if td.lblIfaceTitle != nil {
+		td.lblIfaceTitle.SetText(i18n.T("dash_iface_title"))
+	}
+	if td.btnRefresh != nil {
+		td.btnRefresh.SetText(i18n.T("dash_refresh"))
+	}
+	if td.btnReboot != nil {
+		td.btnReboot.SetText(i18n.T("dash_reboot"))
+	}
 }
 
 func (td *TabDashboard) Refresh() {
@@ -154,7 +198,7 @@ func (td *TabDashboard) Refresh() {
 
 		fyne.Do(func() {
 			td.btnRefresh.Enable()
-			td.btnRefresh.SetText("🔄 Làm Mới Thông Số")
+			td.btnRefresh.SetText(i18n.T("dash_refresh"))
 			if err != nil {
 				td.state.Log(fmt.Sprintf("✗ Lỗi lấy thông số hệ thống: %v", err))
 				return
@@ -189,7 +233,7 @@ func (td *TabDashboard) confirmReboot() {
 		return
 	}
 
-	dialog.ShowConfirm("Khởi Động Lại", "Bạn có chắc chắn muốn khởi động lại Router không? Mạng sẽ tạm thời gián đoạn.", func(ok bool) {
+	dialog.ShowConfirm(i18n.T("dash_reboot_confirm_title"), i18n.T("dash_reboot_confirm_msg"), func(ok bool) {
 		if !ok {
 			return
 		}

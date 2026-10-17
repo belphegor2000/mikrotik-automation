@@ -12,40 +12,53 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"mikrotik-automation/internal/api"
+	"mikrotik-automation/internal/i18n"
 )
 
 type ConnectionBar struct {
-	state      *AppState
-	app        fyne.App
-	entryHost  *widget.Entry
-	entryUser  *widget.Entry
-	entryPass  *widget.Entry
-	entryPort   *widget.Entry
-	selectProto *widget.Select
-	btnConnect  *widget.Button
-	btnDisconn  *widget.Button
-	lblStatus   *widget.Label
-	btnTheme    *widget.Button
-	container   *fyne.Container
+	state          *AppState
+	app            fyne.App
+	lblProtoTitle  *widget.Label
+	lblHostTitle   *widget.Label
+	lblPortTitle   *widget.Label
+	lblUserTitle   *widget.Label
+	lblPassTitle   *widget.Label
+	entryHost      *widget.Entry
+	entryUser      *widget.Entry
+	entryPass      *widget.Entry
+	entryPort      *widget.Entry
+	selectProto    *widget.Select
+	btnConnect     *widget.Button
+	btnDisconn     *widget.Button
+	lblStatus      *widget.Label
+	btnLang        *widget.Button
+	btnTheme       *widget.Button
+	container      *fyne.Container
 }
 
 func NewConnectionBar(state *AppState, a fyne.App) *ConnectionBar {
 	cb := &ConnectionBar{state: state, app: a}
 
+	cb.lblProtoTitle = widget.NewLabelWithStyle(i18n.T("conn_proto"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	cb.lblHostTitle = widget.NewLabelWithStyle(i18n.T("conn_ip"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	cb.lblPortTitle = widget.NewLabelWithStyle(i18n.T("conn_port"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	cb.lblUserTitle = widget.NewLabelWithStyle(i18n.T("conn_user"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	cb.lblPassTitle = widget.NewLabelWithStyle(i18n.T("conn_pass"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+
 	cb.entryHost = widget.NewEntry()
 	cb.entryHost.SetText("192.168.88.1")
-	cb.entryHost.SetPlaceHolder("IP Router")
+	cb.entryHost.SetPlaceHolder("192.168.88.1")
 
 	cb.entryUser = widget.NewEntry()
 	cb.entryUser.SetText("admin")
-	cb.entryUser.SetPlaceHolder("Tài khoản")
+	cb.entryUser.SetPlaceHolder("admin")
 
 	cb.entryPass = widget.NewPasswordEntry()
-	cb.entryPass.SetPlaceHolder("Mật khẩu")
+	cb.entryPass.SetPlaceHolder("Password")
 
 	cb.entryPort = widget.NewEntry()
 	cb.entryPort.SetText("80")
-	cb.entryPort.SetPlaceHolder("Cổng")
+	cb.entryPort.SetPlaceHolder("80")
 
 	cb.selectProto = widget.NewSelect([]string{"REST API", "SSH"}, func(selected string) {
 		if selected == "SSH" {
@@ -56,22 +69,26 @@ func NewConnectionBar(state *AppState, a fyne.App) *ConnectionBar {
 	})
 	cb.selectProto.SetSelected("REST API")
 
-	cb.lblStatus = widget.NewLabel("⚪ Chưa kết nối")
+	cb.lblStatus = widget.NewLabel(i18n.T("conn_not"))
 
-	cb.btnConnect = widget.NewButton("🔌 Kết nối", func() {
+	cb.btnConnect = widget.NewButton(i18n.T("conn_btn"), func() {
 		cb.connect()
 	})
 	cb.btnConnect.Importance = widget.HighImportance
 
-	cb.btnDisconn = widget.NewButton("❌ Ngắt kết nối", func() {
+	cb.btnDisconn = widget.NewButton(i18n.T("conn_disconn"), func() {
 		cb.disconnect()
 	})
 	cb.btnDisconn.Importance = widget.DangerImportance
 	cb.btnDisconn.Disable()
 
-	themeText := "☀️ Sáng"
+	cb.btnLang = widget.NewButton(i18n.T("lang_toggle_btn"), func() {
+		cb.toggleLanguage()
+	})
+
+	themeText := i18n.T("theme_light")
 	if CurrentThemeVariant == theme.VariantLight {
-		themeText = "🌙 Tối"
+		themeText = i18n.T("theme_dark")
 	}
 	cb.btnTheme = widget.NewButton(themeText, func() {
 		cb.toggleTheme()
@@ -87,31 +104,82 @@ func (cb *ConnectionBar) updateStatusText(text string) {
 	}
 }
 
+func (cb *ConnectionBar) toggleLanguage() {
+	newLang := i18n.ToggleLang()
+	if cb.app != nil {
+		cb.app.Preferences().SetString("app_language", newLang)
+	}
+	cb.UpdateLanguage()
+	if newLang == i18n.LangEN {
+		cb.state.Log("Language switched to English.")
+	} else {
+		cb.state.Log("Đã chuyển ngôn ngữ sang Tiếng Việt.")
+	}
+}
+
+func (cb *ConnectionBar) UpdateLanguage() {
+	if cb.lblProtoTitle != nil {
+		cb.lblProtoTitle.SetText(i18n.T("conn_proto"))
+	}
+	if cb.lblHostTitle != nil {
+		cb.lblHostTitle.SetText(i18n.T("conn_ip"))
+	}
+	if cb.lblPortTitle != nil {
+		cb.lblPortTitle.SetText(i18n.T("conn_port"))
+	}
+	if cb.lblUserTitle != nil {
+		cb.lblUserTitle.SetText(i18n.T("conn_user"))
+	}
+	if cb.lblPassTitle != nil {
+		cb.lblPassTitle.SetText(i18n.T("conn_pass"))
+	}
+	if cb.btnLang != nil {
+		cb.btnLang.SetText(i18n.T("lang_toggle_btn"))
+	}
+	if cb.btnTheme != nil {
+		if CurrentThemeVariant == theme.VariantLight {
+			cb.btnTheme.SetText(i18n.T("theme_dark"))
+		} else {
+			cb.btnTheme.SetText(i18n.T("theme_light"))
+		}
+	}
+	c := cb.state.GetClient()
+	if c == nil || !c.IsConnected() {
+		cb.updateStatusText(i18n.T("conn_not"))
+		cb.btnConnect.SetText(i18n.T("conn_btn"))
+	} else {
+		cb.btnConnect.SetText(i18n.T("conn_btn_done"))
+	}
+	if cb.btnDisconn != nil {
+		cb.btnDisconn.SetText(i18n.T("conn_disconn"))
+	}
+}
+
 func (cb *ConnectionBar) toggleTheme() {
 	if cb.app == nil {
 		return
 	}
 	if CurrentThemeVariant == theme.VariantDark {
 		cb.app.Settings().SetTheme(NewCustomAppTheme(theme.VariantLight))
-		cb.btnTheme.SetText("🌙 Tối")
+		cb.btnTheme.SetText(i18n.T("theme_dark"))
 		cb.state.Log("Đã chuyển sang giao diện Sáng (Light mode).")
 	} else {
 		cb.app.Settings().SetTheme(NewCustomAppTheme(theme.VariantDark))
-		cb.btnTheme.SetText("☀️ Sáng")
+		cb.btnTheme.SetText(i18n.T("theme_light"))
 		cb.state.Log("Đã chuyển sang giao diện Tối (Dark mode).")
 	}
 }
 
 func (cb *ConnectionBar) BuildDesktopContainer() fyne.CanvasObject {
 	rowInputs := container.NewGridWithColumns(5,
-		container.NewVBox(widget.NewLabelWithStyle("Phương thức:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), cb.selectProto),
-		container.NewVBox(widget.NewLabelWithStyle("Địa chỉ IP:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), cb.entryHost),
-		container.NewVBox(widget.NewLabelWithStyle("Cổng:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), cb.entryPort),
-		container.NewVBox(widget.NewLabelWithStyle("Tài khoản:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), cb.entryUser),
-		container.NewVBox(widget.NewLabelWithStyle("Mật khẩu:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), cb.entryPass),
+		container.NewVBox(cb.lblProtoTitle, cb.selectProto),
+		container.NewVBox(cb.lblHostTitle, cb.entryHost),
+		container.NewVBox(cb.lblPortTitle, cb.entryPort),
+		container.NewVBox(cb.lblUserTitle, cb.entryUser),
+		container.NewVBox(cb.lblPassTitle, cb.entryPass),
 	)
 
-	actionControls := container.NewHBox(cb.btnConnect, cb.btnDisconn, cb.btnTheme)
+	actionControls := container.NewHBox(cb.btnConnect, cb.btnDisconn, cb.btnLang, cb.btnTheme)
 	statusCard := container.NewBorder(nil, nil, cb.lblStatus, actionControls)
 	cb.container = container.NewVBox(container.NewPadded(rowInputs), widget.NewSeparator(), statusCard)
 	return cb.container

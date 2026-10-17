@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 
+	"mikrotik-automation/internal/i18n"
 	"mikrotik-automation/internal/modules/bridge"
 	"mikrotik-automation/internal/modules/pppoe"
 	"mikrotik-automation/internal/modules/vlan"
@@ -91,17 +92,29 @@ type vlanInputRow struct {
 }
 
 type TabNetwork struct {
-	state      *AppState
-	window     fyne.Window
-	radioWAN   *widget.RadioGroup
-	entryUser1 *widget.Entry
-	entryPass1 *widget.Entry
-	entryUser2 *widget.Entry
-	entryPass2 *widget.Entry
-	wan1Box    *fyne.Container
-	wan2Box    *fyne.Container
+	state          *AppState
+	window         fyne.Window
+	lblMainTitle   *widget.Label
+	lblPPPoETitle  *widget.Label
+	lblPPPoEHint   *widget.Label
+	lblWAN1Title   *widget.Label
+	lblWAN1User    *widget.Label
+	lblWAN1Pass    *widget.Label
+	lblWAN2Title   *widget.Label
+	lblWAN2User    *widget.Label
+	lblWAN2Pass    *widget.Label
+	radioWAN       *widget.RadioGroup
+	entryUser1     *widget.Entry
+	entryPass1     *widget.Entry
+	entryUser2     *widget.Entry
+	entryPass2     *widget.Entry
+	wan1Box        *fyne.Container
+	wan2Box        *fyne.Container
 
 	// Sub-tab 2: Bridge LAN
+	lblBridgeTitle     *widget.Label
+	lblBridgeDesc      *widget.Label
+	bridgeForm         *widget.Form
 	entryBridgeIP      *widget.Entry
 	lblBridgeGW        *widget.Label
 	lblBridgeDHCPRange *widget.Label
@@ -112,11 +125,13 @@ type TabNetwork struct {
 	viewBridge         *fyne.Container
 
 	// Sub-tab 3: VLANs & Subnets (5 inline rows)
-	vlanRowsBox   *fyne.Container
-	vlanRows      []*vlanInputRow
-	btnAddVLANRow *widget.Button
-	btnClearVLAN  *widget.Button
-	viewVLAN      *fyne.Container
+	lblVLANTitle     *widget.Label
+	vlanHeaderLabels []*widget.Label
+	vlanRowsBox      *fyne.Container
+	vlanRows         []*vlanInputRow
+	btnAddVLANRow    *widget.Button
+	btnClearVLAN     *widget.Button
+	viewVLAN         *fyne.Container
 
 	// Global controls
 	subTabs      *container.AppTabs
@@ -131,7 +146,12 @@ type TabNetwork struct {
 func NewTabNetwork(state *AppState, w fyne.Window) *TabNetwork {
 	tn := &TabNetwork{state: state, window: w}
 
+	tn.lblMainTitle = widget.NewLabelWithStyle(i18n.T("net_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+
 	// ── 1. PPPoE WAN Entries ─────────────────────────
+	tn.lblPPPoETitle = widget.NewLabelWithStyle(i18n.T("net_pppoe_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	tn.lblPPPoEHint = widget.NewLabel(i18n.T("net_pppoe_hint"))
+
 	tn.entryUser1 = widget.NewEntry()
 	tn.entryUser1.SetPlaceHolder("pppoe_username")
 	tn.entryPass1 = widget.NewPasswordEntry()
@@ -144,7 +164,7 @@ func NewTabNetwork(state *AppState, w fyne.Window) *TabNetwork {
 	tn.entryUser2.Disable()
 	tn.entryPass2.Disable()
 
-	tn.radioWAN = widget.NewRadioGroup([]string{"1 đường (ether1)", "2 đường (ether1 + ether2) + PCC"}, func(val string) {
+	tn.radioWAN = widget.NewRadioGroup([]string{i18n.T("net_pppoe_1wan"), i18n.T("net_pppoe_2wan")}, func(val string) {
 		if tn.entryUser2 == nil || tn.entryPass2 == nil {
 			return
 		}
@@ -157,21 +177,30 @@ func NewTabNetwork(state *AppState, w fyne.Window) *TabNetwork {
 			tn.entryPass2.Disable()
 		}
 	})
-	tn.radioWAN.SetSelected("1 đường (ether1)")
+	tn.radioWAN.SetSelected(i18n.T("net_pppoe_1wan"))
 
+	tn.lblWAN1Title = widget.NewLabelWithStyle(i18n.T("net_pppoe_wan1"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	tn.lblWAN1User = widget.NewLabel(i18n.T("net_pppoe_user"))
+	tn.lblWAN1Pass = widget.NewLabel(i18n.T("net_pppoe_pass"))
 	tn.wan1Box = container.NewVBox(
-		widget.NewLabelWithStyle("WAN 1 (ether1)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabel("Tài khoản:"), tn.entryUser1,
-		widget.NewLabel("Mật khẩu:"), tn.entryPass1,
+		tn.lblWAN1Title,
+		tn.lblWAN1User, tn.entryUser1,
+		tn.lblWAN1Pass, tn.entryPass1,
 	)
 
+	tn.lblWAN2Title = widget.NewLabelWithStyle(i18n.T("net_pppoe_wan2"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	tn.lblWAN2User = widget.NewLabel(i18n.T("net_pppoe_user"))
+	tn.lblWAN2Pass = widget.NewLabel(i18n.T("net_pppoe_pass"))
 	tn.wan2Box = container.NewVBox(
-		widget.NewLabelWithStyle("WAN 2 (ether2)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabel("Tài khoản:"), tn.entryUser2,
-		widget.NewLabel("Mật khẩu:"), tn.entryPass2,
+		tn.lblWAN2Title,
+		tn.lblWAN2User, tn.entryUser2,
+		tn.lblWAN2Pass, tn.entryPass2,
 	)
 
 	// ── 2. Bridge Sub-view ────────────────────────────
+	tn.lblBridgeTitle = widget.NewLabelWithStyle(i18n.T("net_bridge_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	tn.lblBridgeDesc = widget.NewLabel(i18n.T("net_bridge_desc"))
+
 	tn.entryBridgeIP = widget.NewEntry()
 	tn.entryBridgeIP.SetText("192.168.88.1/24")
 	tn.entryBridgeIP.SetPlaceHolder("vd: 192.168.88.1/24, 10.0.0.1/24, 172.16.1.1/24")
@@ -196,57 +225,62 @@ func NewTabNetwork(state *AppState, w fyne.Window) *TabNetwork {
 		}
 	}
 
-	tn.chkBridgeDHCP = widget.NewCheck("Tự động cấu hình DHCP Server cho Bridge", nil)
+	tn.chkBridgeDHCP = widget.NewCheck(i18n.T("net_bridge_dhcp_chk"), nil)
 	tn.chkBridgeDHCP.SetChecked(true)
 
 	tn.entryBridgeDNS = widget.NewEntry()
 	tn.entryBridgeDNS.SetText("8.8.8.8, 1.1.1.1")
 	tn.entryBridgeDNS.SetPlaceHolder("8.8.8.8, 1.1.1.1")
 
-	tn.lblBridgePorts = widget.NewLabel("Nhấn 'Kiểm tra danh sách Port' để xem các cổng sẽ gán vào Bridge.")
-	tn.btnPreviewPort = widget.NewButton("🔍 Kiểm tra danh sách Port", func() {
+	tn.lblBridgePorts = widget.NewLabel(i18n.T("net_bridge_ports_init"))
+	tn.btnPreviewPort = widget.NewButton(i18n.T("net_bridge_check_port"), func() {
 		tn.previewBridgePorts()
 	})
 
-	bridgeForm := widget.NewForm(
-		widget.NewFormItem("Địa chỉ IP Bridge (CIDR):", tn.entryBridgeIP),
-		widget.NewFormItem("Thông số tính toán:", container.NewVBox(tn.lblBridgeGW, tn.lblBridgeDHCPRange)),
-		widget.NewFormItem("Dịch vụ DHCP Server:", tn.chkBridgeDHCP),
-		widget.NewFormItem("DNS Servers:", tn.entryBridgeDNS),
+	tn.bridgeForm = widget.NewForm(
+		widget.NewFormItem(i18n.T("net_bridge_ip_label"), tn.entryBridgeIP),
+		widget.NewFormItem(i18n.T("net_bridge_calc_label"), container.NewVBox(tn.lblBridgeGW, tn.lblBridgeDHCPRange)),
+		widget.NewFormItem(i18n.T("net_bridge_dhcp_label"), tn.chkBridgeDHCP),
+		widget.NewFormItem(i18n.T("net_bridge_dns_label"), tn.entryBridgeDNS),
 	)
 
-	descBridge := "• Tạo bridge trung tâm 'bridgeVLAN' và gán các cổng Ethernet còn lại.\n" +
-		"• Hỗ trợ mọi dải IP tùy biến (10.x, 172.x, 192.168.x...). Tự tính Gateway và DHCP Pool.\n" +
-		"• Nếu đổi IP khác IP hiện tại, hệ thống sẽ tự động chuyển kết nối sang IP mới."
-
 	tn.viewBridge = container.NewVBox(
-		widget.NewLabelWithStyle("Cấu Hình Bridge LAN (bridgeVLAN):", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabel(descBridge),
-		bridgeForm,
+		tn.lblBridgeTitle,
+		tn.lblBridgeDesc,
+		tn.bridgeForm,
 		container.NewHBox(tn.btnPreviewPort, tn.lblBridgePorts),
 	)
 
 	// ── 3. VLAN Sub-view (5 Inline Rows) ──────────────
+	tn.lblVLANTitle = widget.NewLabelWithStyle(i18n.T("net_vlan_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	tn.vlanRowsBox = container.NewVBox()
 
-	tn.btnAddVLANRow = widget.NewButton("➕ Thêm dòng VLAN", func() {
+	tn.btnAddVLANRow = widget.NewButton(i18n.T("net_vlan_add_row"), func() {
 		tn.addVLANRow()
 	})
 	tn.btnAddVLANRow.Importance = widget.HighImportance
 
-	tn.btnClearVLAN = widget.NewButton("🗑️ Xoá tất cả", func() {
+	tn.btnClearVLAN = widget.NewButton(i18n.T("net_vlan_clear_all"), func() {
 		tn.clearAllVLANRows()
 	})
 	tn.btnClearVLAN.Importance = widget.DangerImportance
 
 	vlanBar := container.NewHBox(tn.btnAddVLANRow, tn.btnClearVLAN)
 
+	tn.vlanHeaderLabels = []*widget.Label{
+		widget.NewLabelWithStyle(i18n.T("net_vlan_col_id"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle(i18n.T("net_vlan_col_name"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle(i18n.T("net_vlan_col_cidr"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle(i18n.T("net_vlan_col_gw"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle(i18n.T("net_vlan_col_action"), fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+	}
+
 	vlanHeader := container.New(&vlanRowLayout{},
-		widget.NewLabelWithStyle("VLAN ID", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabelWithStyle("Tên VLAN", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabelWithStyle("Network (CIDR)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabelWithStyle("Gateway (Tự tính)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabelWithStyle("Thao tác", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		tn.vlanHeaderLabels[0],
+		tn.vlanHeaderLabels[1],
+		tn.vlanHeaderLabels[2],
+		tn.vlanHeaderLabels[3],
+		tn.vlanHeaderLabels[4],
 	)
 
 	tn.initVLANRows()
@@ -255,7 +289,7 @@ func NewTabNetwork(state *AppState, w fyne.Window) *TabNetwork {
 
 	tn.viewVLAN = container.NewBorder(
 		container.NewVBox(
-			widget.NewLabelWithStyle("Quản Lý Phân Đoạn Mạng VLANs (5 dòng mặc định, tự tính Gateway):", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			tn.lblVLANTitle,
 			vlanBar,
 			widget.NewSeparator(),
 			vlanHeader,
@@ -265,10 +299,10 @@ func NewTabNetwork(state *AppState, w fyne.Window) *TabNetwork {
 	)
 
 	// Bottom action bar
-	tn.btnApplyStep = widget.NewButton("⚙️ Áp dụng mục hiện tại", func() {
+	tn.btnApplyStep = widget.NewButton(i18n.T("net_btn_apply_step"), func() {
 		tn.applyCurrentStep()
 	})
-	tn.btnDeployAll = widget.NewButton("🚀 Triển Khai Toàn Diện (WAN ➔ Bridge ➔ VLAN)", func() {
+	tn.btnDeployAll = widget.NewButton(i18n.T("net_btn_deploy_all"), func() {
 		tn.deployAll()
 	})
 	tn.btnDeployAll.Importance = widget.HighImportance
@@ -288,7 +322,7 @@ func (tn *TabNetwork) createVLANRow(defaultID string, defaultName string, defaul
 	row.entryName.SetPlaceHolder(defaultName)
 	row.entryCIDR.SetPlaceHolder(defaultCIDR)
 
-	row.btnDelete = widget.NewButton("🗑️ Xoá", func() {
+	row.btnDelete = widget.NewButton(i18n.T("btn_delete"), func() {
 		tn.removeOrClearRow(row)
 	})
 
@@ -487,22 +521,22 @@ func (tn *TabNetwork) syncVLANsQuietly() {
 
 func (tn *TabNetwork) BuildDesktopContainer() fyne.CanvasObject {
 	viewPPPoE := container.NewVBox(
-		widget.NewLabelWithStyle("Cấu Hình Đường Truyền PPPoE WAN:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		tn.lblPPPoETitle,
 		tn.radioWAN,
 		container.NewGridWithColumns(2, tn.wan1Box, tn.wan2Box),
-		widget.NewLabel("Khi chọn 2 đường: Hệ thống tự động tạo Mangle PCC, Dual Default Routes & NAT masquerade."),
+		tn.lblPPPoEHint,
 	)
 
 	tn.subTabs = container.NewAppTabs(
-		container.NewTabItem("1. PPPoE WAN", viewPPPoE),
-		container.NewTabItem("2. Bridge LAN", tn.viewBridge),
-		container.NewTabItem("3. VLANs & Subnets", tn.viewVLAN),
+		container.NewTabItem(i18n.T("net_sub_pppoe"), viewPPPoE),
+		container.NewTabItem(i18n.T("net_sub_bridge"), tn.viewBridge),
+		container.NewTabItem(i18n.T("net_sub_vlan"), tn.viewVLAN),
 	)
 
 	bottomBar := container.NewBorder(nil, nil, tn.btnApplyStep, tn.btnDeployAll)
 
 	return container.NewBorder(
-		widget.NewLabelWithStyle("🌐 Cấu Hình Mạng Toàn Diện", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		tn.lblMainTitle,
 		bottomBar,
 		nil,
 		nil,
@@ -512,6 +546,97 @@ func (tn *TabNetwork) BuildDesktopContainer() fyne.CanvasObject {
 
 func (tn *TabNetwork) Container() fyne.CanvasObject {
 	return tn.BuildDesktopContainer()
+}
+
+func (tn *TabNetwork) UpdateLanguage() {
+	if tn.lblMainTitle != nil {
+		tn.lblMainTitle.SetText(i18n.T("net_title"))
+	}
+	if tn.lblPPPoETitle != nil {
+		tn.lblPPPoETitle.SetText(i18n.T("net_pppoe_title"))
+	}
+	if tn.lblPPPoEHint != nil {
+		tn.lblPPPoEHint.SetText(i18n.T("net_pppoe_hint"))
+	}
+	if tn.lblWAN1Title != nil {
+		tn.lblWAN1Title.SetText(i18n.T("net_pppoe_wan1"))
+	}
+	if tn.lblWAN1User != nil {
+		tn.lblWAN1User.SetText(i18n.T("net_pppoe_user"))
+	}
+	if tn.lblWAN1Pass != nil {
+		tn.lblWAN1Pass.SetText(i18n.T("net_pppoe_pass"))
+	}
+	if tn.lblWAN2Title != nil {
+		tn.lblWAN2Title.SetText(i18n.T("net_pppoe_wan2"))
+	}
+	if tn.lblWAN2User != nil {
+		tn.lblWAN2User.SetText(i18n.T("net_pppoe_user"))
+	}
+	if tn.lblWAN2Pass != nil {
+		tn.lblWAN2Pass.SetText(i18n.T("net_pppoe_pass"))
+	}
+	if tn.radioWAN != nil {
+		isDual := strings.HasPrefix(tn.radioWAN.Selected, "2")
+		tn.radioWAN.Options = []string{i18n.T("net_pppoe_1wan"), i18n.T("net_pppoe_2wan")}
+		if isDual {
+			tn.radioWAN.SetSelected(tn.radioWAN.Options[1])
+		} else {
+			tn.radioWAN.SetSelected(tn.radioWAN.Options[0])
+		}
+	}
+	if tn.lblBridgeTitle != nil {
+		tn.lblBridgeTitle.SetText(i18n.T("net_bridge_title"))
+	}
+	if tn.lblBridgeDesc != nil {
+		tn.lblBridgeDesc.SetText(i18n.T("net_bridge_desc"))
+	}
+	if tn.bridgeForm != nil && len(tn.bridgeForm.Items) >= 4 {
+		tn.bridgeForm.Items[0].Text = i18n.T("net_bridge_ip_label")
+		tn.bridgeForm.Items[1].Text = i18n.T("net_bridge_calc_label")
+		tn.bridgeForm.Items[2].Text = i18n.T("net_bridge_dhcp_label")
+		tn.bridgeForm.Items[3].Text = i18n.T("net_bridge_dns_label")
+		tn.bridgeForm.Refresh()
+	}
+	if tn.chkBridgeDHCP != nil {
+		tn.chkBridgeDHCP.SetText(i18n.T("net_bridge_dhcp_chk"))
+	}
+	if tn.btnPreviewPort != nil {
+		tn.btnPreviewPort.SetText(i18n.T("net_bridge_check_port"))
+	}
+	if tn.lblVLANTitle != nil {
+		tn.lblVLANTitle.SetText(i18n.T("net_vlan_title"))
+	}
+	if tn.btnAddVLANRow != nil {
+		tn.btnAddVLANRow.SetText(i18n.T("net_vlan_add_row"))
+	}
+	if tn.btnClearVLAN != nil {
+		tn.btnClearVLAN.SetText(i18n.T("net_vlan_clear_all"))
+	}
+	if len(tn.vlanHeaderLabels) >= 5 {
+		tn.vlanHeaderLabels[0].SetText(i18n.T("net_vlan_col_id"))
+		tn.vlanHeaderLabels[1].SetText(i18n.T("net_vlan_col_name"))
+		tn.vlanHeaderLabels[2].SetText(i18n.T("net_vlan_col_cidr"))
+		tn.vlanHeaderLabels[3].SetText(i18n.T("net_vlan_col_gw"))
+		tn.vlanHeaderLabels[4].SetText(i18n.T("net_vlan_col_action"))
+	}
+	for _, row := range tn.vlanRows {
+		if row != nil && row.btnDelete != nil {
+			row.btnDelete.SetText(i18n.T("btn_delete"))
+		}
+	}
+	if tn.btnApplyStep != nil {
+		tn.btnApplyStep.SetText(i18n.T("net_btn_apply_step"))
+	}
+	if tn.btnDeployAll != nil {
+		tn.btnDeployAll.SetText(i18n.T("net_btn_deploy_all"))
+	}
+	if tn.subTabs != nil && len(tn.subTabs.Items) >= 3 {
+		tn.subTabs.Items[0].Text = i18n.T("net_sub_pppoe")
+		tn.subTabs.Items[1].Text = i18n.T("net_sub_bridge")
+		tn.subTabs.Items[2].Text = i18n.T("net_sub_vlan")
+		tn.subTabs.Refresh()
+	}
 }
 
 func (tn *TabNetwork) previewBridgePorts() {
@@ -548,17 +673,17 @@ func (tn *TabNetwork) applyCurrentStep() {
 		return
 	}
 
-	selected := tn.subTabs.Selected()
-	if selected == nil {
+	if tn.subTabs == nil {
 		return
 	}
+	selectedIdx := tn.subTabs.SelectedIndex()
 
 	tn.btnApplyStep.Disable()
 	go func() {
 		defer fyne.Do(func() { tn.btnApplyStep.Enable() })
 
-		switch selected.Text {
-		case "1. PPPoE WAN":
+		switch selectedIdx {
+		case 0: // PPPoE WAN
 			wanCount := 1
 			if strings.HasPrefix(tn.radioWAN.Selected, "2") {
 				wanCount = 2
@@ -569,7 +694,7 @@ func (tn *TabNetwork) applyCurrentStep() {
 			} else {
 				_ = cfg.ConfigureDualPCC(tn.entryUser1.Text, tn.entryPass1.Text, tn.entryUser2.Text, tn.entryPass2.Text, "bridgeVLAN")
 			}
-		case "2. Bridge LAN":
+		case 1: // Bridge LAN
 			wanCount := 1
 			if strings.HasPrefix(tn.radioWAN.Selected, "2") {
 				wanCount = 2
@@ -607,7 +732,7 @@ func (tn *TabNetwork) applyCurrentStep() {
 					})
 				}
 			}
-		case "3. VLANs & Subnets":
+		case 2: // VLANs & Subnets
 			vlans, err := tn.syncVLANsFromUI()
 			if err != nil {
 				tn.state.Log(fmt.Sprintf("✗ %v", err))

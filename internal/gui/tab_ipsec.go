@@ -8,12 +8,16 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 
+	"mikrotik-automation/internal/i18n"
 	"mikrotik-automation/internal/modules/ipsec"
 )
 
 type TabIPSec struct {
 	state          *AppState
 	container      *fyne.Container
+	lblMainTitle   *widget.Label
+	lblDesc        *widget.Label
+	form           *widget.Form
 	entryPeer      *widget.Entry
 	chkPassive     *widget.Check
 	entryLocalAddr *widget.Entry
@@ -32,14 +36,16 @@ type TabIPSec struct {
 func NewTabIPSec(state *AppState) *TabIPSec {
 	ti := &TabIPSec{state: state}
 
+	ti.lblMainTitle = widget.NewLabelWithStyle(i18n.T("ipsec_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+
 	ti.entryPeer = widget.NewEntry()
 	ti.entryPeer.SetPlaceHolder("203.0.113.1 hoặc branch.sn.mynetname.net")
 
 	ti.entryLocalAddr = widget.NewEntry()
-	ti.entryLocalAddr.SetPlaceHolder("Local Address: Tự động lấy IP PPPoE ether1 (hoặc tự điền)")
+	ti.entryLocalAddr.SetPlaceHolder(i18n.T("ipsec_local_addr"))
 	ti.entryLocalAddr.Disable()
 
-	ti.chkPassive = widget.NewCheck("Đầu xa dùng IP động (Chờ đầu xa kết nối - Passive Responder 0.0.0.0/0)", func(checked bool) {
+	ti.chkPassive = widget.NewCheck(i18n.T("ipsec_passive_chk"), func(checked bool) {
 		if checked {
 			ti.entryPeer.SetText("0.0.0.0/0")
 			ti.entryPeer.Disable()
@@ -53,7 +59,7 @@ func NewTabIPSec(state *AppState) *TabIPSec {
 		}
 	})
 
-	ti.btnCloudDDNS = widget.NewButton("🌐 Lấy Cloud DDNS Router Này", func() {
+	ti.btnCloudDDNS = widget.NewButton(i18n.T("ipsec_cloud_ddns"), func() {
 		ti.getCloudDDNS()
 	})
 
@@ -72,11 +78,11 @@ func NewTabIPSec(state *AppState) *TabIPSec {
 	ti.entryLocal.SetPlaceHolder("192.168.10.0/24, 192.168.20.0/24 (phân cách bằng dấu phẩy hoặc xuống dòng)")
 	ti.entryLocal.SetText("192.168.10.0/24")
 
-	ti.btnDetect = widget.NewButton("🔍 Quét VLAN từ Router", func() {
+	ti.btnDetect = widget.NewButton(i18n.T("ipsec_scan_btn"), func() {
 		ti.detectLocalSubnets()
 	})
 
-	ti.btnFromVLANs = widget.NewButton("📋 Lấy từ VLAN ứng dụng", func() {
+	ti.btnFromVLANs = widget.NewButton(i18n.T("ipsec_from_vlan"), func() {
 		ti.loadFromAppVLANs()
 	})
 
@@ -90,7 +96,7 @@ func NewTabIPSec(state *AppState) *TabIPSec {
 	ti.entryRemote = widget.NewEntry()
 	ti.entryRemote.SetPlaceHolder("172.16.1.0/24, 172.16.2.0/24 (phân cách bằng dấu phẩy hoặc xuống dòng)")
 
-	ti.btnApply = widget.NewButton("🔐 Áp Dụng Cấu Hình IPSec VPN", func() {
+	ti.btnApply = widget.NewButton(i18n.T("ipsec_apply_btn"), func() {
 		ti.apply()
 	})
 	ti.btnApply.Importance = widget.HighImportance
@@ -99,31 +105,60 @@ func NewTabIPSec(state *AppState) *TabIPSec {
 }
 
 func (ti *TabIPSec) BuildDesktopContainer() fyne.CanvasObject {
-	form := widget.NewForm(
-		widget.NewFormItem("IP Router Đầu Xa (Peer / DDNS):", ti.peerBox),
-		widget.NewFormItem("Pre-Shared Key (Mật khẩu):", ti.entryPSK),
-		widget.NewFormItem("Dải Mạng Nội Bộ (Local Subnets):", ti.localBox),
-		widget.NewFormItem("Dải Mạng Đầu Xa (Remote Subnets):", ti.entryRemote),
+	ti.form = widget.NewForm(
+		widget.NewFormItem(i18n.T("ipsec_peer_label"), ti.peerBox),
+		widget.NewFormItem(i18n.T("ipsec_psk_label"), ti.entryPSK),
+		widget.NewFormItem(i18n.T("ipsec_local_label"), ti.localBox),
+		widget.NewFormItem(i18n.T("ipsec_remote_label"), ti.entryRemote),
 	)
 
-	desc := "Tạo đường hầm mã hoá VPN IKEv2 kết nối các chi nhánh văn phòng:\n" +
-		"• Hỗ trợ kết nối đa dải mạng VLAN (1 hoặc nhiều VLAN nội bộ <--> 1 hoặc nhiều VLAN đầu xa).\n" +
-		"• Tự động sinh ma trận đầy đủ các chính sách IPSec Policy và NAT Bypass rules.\n" +
-		"• Hỗ trợ IP động qua Tên miền DDNS (FQDN) hoặc chế độ Passive Responder (0.0.0.0/0)."
-
-	lblDesc := widget.NewLabel(desc)
-	lblDesc.Wrapping = fyne.TextWrapWord
+	ti.lblDesc = widget.NewLabel(i18n.T("ipsec_desc"))
+	ti.lblDesc.Wrapping = fyne.TextWrapWord
 
 	return container.NewVBox(
-		widget.NewLabelWithStyle("🔐 Cấu Hình IPSec VPN Site-to-Site (IKEv2 PSK & Đa VLAN)", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		lblDesc,
-		form,
+		ti.lblMainTitle,
+		ti.lblDesc,
+		ti.form,
 		ti.btnApply,
 	)
 }
 
 func (ti *TabIPSec) Container() fyne.CanvasObject {
 	return ti.BuildDesktopContainer()
+}
+
+func (ti *TabIPSec) UpdateLanguage() {
+	if ti.lblMainTitle != nil {
+		ti.lblMainTitle.SetText(i18n.T("ipsec_title"))
+	}
+	if ti.lblDesc != nil {
+		ti.lblDesc.SetText(i18n.T("ipsec_desc"))
+	}
+	if ti.form != nil && len(ti.form.Items) >= 4 {
+		ti.form.Items[0].Text = i18n.T("ipsec_peer_label")
+		ti.form.Items[1].Text = i18n.T("ipsec_psk_label")
+		ti.form.Items[2].Text = i18n.T("ipsec_local_label")
+		ti.form.Items[3].Text = i18n.T("ipsec_remote_label")
+		ti.form.Refresh()
+	}
+	if ti.chkPassive != nil {
+		ti.chkPassive.SetText(i18n.T("ipsec_passive_chk"))
+	}
+	if ti.entryLocalAddr != nil {
+		ti.entryLocalAddr.SetPlaceHolder(i18n.T("ipsec_local_addr"))
+	}
+	if ti.btnCloudDDNS != nil {
+		ti.btnCloudDDNS.SetText(i18n.T("ipsec_cloud_ddns"))
+	}
+	if ti.btnDetect != nil {
+		ti.btnDetect.SetText(i18n.T("ipsec_scan_btn"))
+	}
+	if ti.btnFromVLANs != nil {
+		ti.btnFromVLANs.SetText(i18n.T("ipsec_from_vlan"))
+	}
+	if ti.btnApply != nil {
+		ti.btnApply.SetText(i18n.T("ipsec_apply_btn"))
+	}
 }
 
 func (ti *TabIPSec) detectLocalSubnets() {
