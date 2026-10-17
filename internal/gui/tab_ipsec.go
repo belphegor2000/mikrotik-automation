@@ -16,6 +16,7 @@ type TabIPSec struct {
 	container      *fyne.Container
 	entryPeer      *widget.Entry
 	chkPassive     *widget.Check
+	entryLocalAddr *widget.Entry
 	entryPSK       *widget.Entry
 	entryLocal     *widget.Entry
 	entryRemote    *widget.Entry
@@ -34,15 +35,21 @@ func NewTabIPSec(state *AppState) *TabIPSec {
 	ti.entryPeer = widget.NewEntry()
 	ti.entryPeer.SetPlaceHolder("203.0.113.1 hoặc branch.sn.mynetname.net")
 
+	ti.entryLocalAddr = widget.NewEntry()
+	ti.entryLocalAddr.SetPlaceHolder("Local Address: Tự động lấy IP PPPoE ether1 (hoặc tự điền)")
+	ti.entryLocalAddr.Disable()
+
 	ti.chkPassive = widget.NewCheck("Đầu xa dùng IP động (Chờ đầu xa kết nối - Passive Responder 0.0.0.0/0)", func(checked bool) {
 		if checked {
 			ti.entryPeer.SetText("0.0.0.0/0")
 			ti.entryPeer.Disable()
+			ti.entryLocalAddr.Enable()
 		} else {
 			if ti.entryPeer.Text == "0.0.0.0/0" {
 				ti.entryPeer.SetText("")
 			}
 			ti.entryPeer.Enable()
+			ti.entryLocalAddr.Disable()
 		}
 	})
 
@@ -53,6 +60,7 @@ func NewTabIPSec(state *AppState) *TabIPSec {
 	peerBox := container.NewVBox(
 		ti.entryPeer,
 		ti.chkPassive,
+		ti.entryLocalAddr,
 		ti.btnCloudDDNS,
 	)
 	ti.peerBox = peerBox
@@ -216,6 +224,7 @@ func (ti *TabIPSec) apply() {
 		cfg := ipsec.NewConfigurator(c, ti.state.Log)
 		_ = cfg.Configure(ipsec.IPSecConfig{
 			PeerAddress:   peer,
+			LocalAddress:  strings.TrimSpace(ti.entryLocalAddr.Text),
 			PSK:           psk,
 			LocalSubnets:  localSubnets,
 			RemoteSubnets: remoteSubnets,

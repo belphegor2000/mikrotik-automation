@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"sort"
+	"strings"
 
 	"mikrotik-automation/internal/api"
 )
@@ -232,17 +234,26 @@ func (c *Configurator) Configure(vlans []VLANEntry) error {
 		}
 	}
 
-	// 8. Cấu hình Bridge VLAN Table
-	c.log("  ▶ [8/9] Cấu hình Bridge VLAN Table...")
+	// 8. Cấu hình Bridge VLAN Table (Trunk Ports)
+	c.log("  ▶ [8/9] Cấu hình Bridge VLAN Table (Trunk ports)...")
+	memberPorts, _ := c.getBridgeMemberPorts()
+	taggedList := []string{BridgeName}
+	taggedList = append(taggedList, memberPorts...)
+	taggedStr := strings.Join(taggedList, ",")
+	c.log(fmt.Sprintf("    + Danh sách Tagged (Trunk): %s", taggedStr))
+
+	// Xoá cấu hình bridge vlan cũ của MK-AUTO nếu có để cập nhật danh sách tagged
+	_, _ = c.client.RemoveByComment("interface/bridge/vlan", AppComment)
+
 	for _, v := range vlans {
-		c.log(fmt.Sprintf("    + Thêm vlan-id %d vào bridge '%s'...", v.VLANID, BridgeName))
+		c.log(fmt.Sprintf("    + Thêm vlan-id %d vào bridge '%s' (tagged: %s)...", v.VLANID, BridgeName, taggedStr))
 		data := map[string]interface{}{
 			"bridge":   BridgeName,
 			"vlan-ids": v.VLANID,
 			"comment":  AppComment,
 		}
 		if v.VLANID != 1 {
-			data["tagged"] = BridgeName
+			data["tagged"] = taggedStr
 		}
 		_, err := c.client.Add("interface/bridge/vlan", data)
 		if err != nil {
@@ -284,3 +295,21 @@ func (c *Configurator) AddLanAddress(netCIDR string) error {
 	})
 	return err
 }
+
+func (c *Configurator) getBridgeMemberPorts() ([]string, error) {
+	ports, err := c.client.Get("interface/bridge/port")
+	if err != nil {
+		return nil, err
+	}
+	var result []string
+	for _, p := range ports {
+		if br, ok := p["bridge"].(string); ok && br == BridgeName {
+			if iface, ok := p["interface"].(string); ok && iface != "" {
+				result = append(result, iface)
+			}
+		}
+	}
+	sort.Strings(result)
+	return result, nil
+}
+

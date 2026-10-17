@@ -96,3 +96,28 @@ func TestConfigureVLANWithLanAddress(t *testing.T) {
 	}
 }
 
+func TestConfigureVLANBridgeTrunking(t *testing.T) {
+	mock := &mockVlanClient{}
+	cfg := NewConfigurator(mock, func(string) {})
+	vlans := []VLANEntry{
+		{VLANID: 10, Name: "users", CIDR: "192.168.10.1/24"},
+	}
+	err := cfg.Configure(vlans)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	foundTagged := false
+	for _, d := range mock.addedData {
+		if _, ok := d["vlan-ids"]; ok {
+			if tagged, ok := d["tagged"].(string); ok && tagged == BridgeName {
+				foundTagged = true
+				break
+			}
+		}
+	}
+	if !foundTagged {
+		t.Fatalf("expected tagged entry for VLAN table not found")
+	}
+}
+

@@ -16,6 +16,7 @@ const (
 
 type IPSecConfig struct {
 	PeerAddress   string   `json:"peer_address"`
+	LocalAddress  string   `json:"local_address,omitempty"`
 	PSK           string   `json:"psk"`
 	LocalSubnets  []string `json:"local_subnets"`
 	RemoteSubnets []string `json:"remote_subnets"`
@@ -130,6 +131,33 @@ func (c *Configurator) GetCloudDDNS() (string, error) {
 	return "", fmt.Errorf("chưa có dns-name từ MikroTik Cloud")
 }
 
+// GetPPPoEWAN1IP queries the IP address assigned to pppoe-wan1 (or ether1)
+func (c *Configurator) GetPPPoEWAN1IP() (string, error) {
+	addrs, err := c.client.Get("ip/address")
+	if err != nil {
+		return "", err
+	}
+	// First check pppoe-wan1
+	for _, a := range addrs {
+		if iface, _ := a["interface"].(string); iface == "pppoe-wan1" {
+			if addr, ok := a["address"].(string); ok && addr != "" {
+				ip := strings.Split(addr, "/")[0]
+				return ip, nil
+			}
+		}
+	}
+	// Fallback to ether1
+	for _, a := range addrs {
+		if iface, _ := a["interface"].(string); iface == "ether1" {
+			if addr, ok := a["address"].(string); ok && addr != "" {
+				ip := strings.Split(addr, "/")[0]
+				return ip, nil
+			}
+		}
+	}
+	return "", nil
+}
+
 func (c *Configurator) Configure(cfg IPSecConfig) error {
 	localList := cfg.LocalSubnets
 	if len(localList) == 0 && cfg.LocalSubnet != "" {
@@ -239,6 +267,18 @@ func (c *Configurator) Configure(cfg IPSecConfig) error {
 	if cfg.IsPassivePeer || peerAddr == "0.0.0.0/0" {
 		peerData["passive"] = "yes"
 		peerData["send-initial-contact"] = "no"
+
+		localAddr := strings.TrimSpace(cfg.LocalAddress)
+		if localAddr == "" {
+			detected, _ := c.GetPPPoEWAN1IP()
+			localAddr = detected
+		}
+		if localAddr != "" {
+			peerData["local-address"] = localAddr
+			c.log(fmt.Sprintf("    + Gán local-address=%s (từ PPPoE ether1) cho Passive Peer", localAddr))
+		} else {
+			c.log("    + Không tìm thấy IP PPPoE trên ether1, để trống local-address")
+		}
 	}
 	_, err = c.client.Add("ip/ipsec/peer", peerData)
 	if err != nil {

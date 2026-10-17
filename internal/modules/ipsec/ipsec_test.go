@@ -12,8 +12,15 @@ type mockIPSecClient struct {
 func (m *mockIPSecClient) Connect(h, u, p string, port int, ssl bool) (string, error) { return "mock", nil }
 func (m *mockIPSecClient) Disconnect() error                                         { return nil }
 func (m *mockIPSecClient) IsConnected() bool                                         { return true }
-func (m *mockIPSecClient) GetIdentity() string                                       { return "mock" }
-func (m *mockIPSecClient) Get(path string) ([]map[string]interface{}, error)        { return nil, nil }
+func (m *mockIPSecClient) GetIdentity() string { return "mock" }
+func (m *mockIPSecClient) Get(path string) ([]map[string]interface{}, error) {
+	if path == "ip/address" {
+		return []map[string]interface{}{
+			{"interface": "pppoe-wan1", "address": "14.162.100.20/32"},
+		}, nil
+	}
+	return nil, nil
+}
 func (m *mockIPSecClient) GetOne(path string) (map[string]interface{}, error) {
 	if path == "ip/cloud" {
 		return map[string]interface{}{
@@ -160,16 +167,23 @@ func TestConfigureDynamicPassivePeer(t *testing.T) {
 	}
 
 	foundPassivePeer := false
+	foundLocalAddress := false
 	for i, path := range mock.addedPaths {
 		if path == "ip/ipsec/peer" {
 			data := mock.addedData[i]
 			if data["address"] == "0.0.0.0/0" && data["passive"] == "yes" {
 				foundPassivePeer = true
+				if data["local-address"] == "14.162.100.20" {
+					foundLocalAddress = true
+				}
 			}
 		}
 	}
 	if !foundPassivePeer {
 		t.Fatalf("expected passive peer with address 0.0.0.0/0 not found")
+	}
+	if !foundLocalAddress {
+		t.Fatalf("expected local-address 14.162.100.20 on passive peer, but was not found or mismatched")
 	}
 }
 
