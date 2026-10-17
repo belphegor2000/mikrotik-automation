@@ -53,7 +53,7 @@ const BruteForceScriptSource = `# Auto Block Brute Force Login Failures (MK-AUTO
           :local failureCount 0;
           :foreach j in=$logList do={
             :local jMsg [/log get $j message];
-            :if ([:imatch $jMsg $ip]) do={
+            :if ([:typeof [:find $jMsg $ip]] = "num") do={
               :set failureCount ($failureCount + 1);
             };
           };
