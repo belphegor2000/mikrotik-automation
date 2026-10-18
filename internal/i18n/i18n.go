@@ -128,6 +128,7 @@ var dictVI = map[string]string{
 	// Main Tabs
 	"tab_dashboard": "📊 Dashboard",
 	"tab_network":   "🌐 Cấu Hình Mạng",
+	"tab_queue":     "⚡ Băng Thông",
 	"tab_security":  "🔒 Bảo Mật",
 	"tab_ipsec":     "🔐 IPSec VPN",
 	"tab_backup":    "💾 Sao Lưu & Phục Hồi",
@@ -250,6 +251,26 @@ var dictVI = map[string]string{
 	// Backup prompts
 	"bk_restore_confirm_title": "Khôi Phục Cấu Hình",
 	"bk_restore_confirm_msg":   "Bạn có chắc chắn muốn phục hồi cấu hình từ '%s' không?\nRouter sẽ tự động khởi động lại!",
+
+	// Tab Queue
+	"queue_title":                "⚡ Quản Lý Băng Thông (Simple Queues)",
+	"queue_form_title":           "Thêm Giới Hạn Băng Thông Mới:",
+	"queue_name_label":           "Tên Queue:",
+	"queue_target_label":         "Địa chỉ Target (IP / Subnet):",
+	"queue_upload_label":         "Tốc độ Upload tối đa:",
+	"queue_download_label":       "Tốc độ Download tối đa:",
+	"queue_from_vlan_btn":        "📋 Chọn Subnet từ VLAN",
+	"queue_add_btn":              "➕ Thêm Giới Hạn Băng Thông",
+	"queue_list_title":           "Danh Sách Simple Queues Đang Chạy:",
+	"queue_refresh_btn":          "🔄 Tải lại danh sách",
+	"queue_col_name":             "Tên Queue",
+	"queue_col_target":           "Target",
+	"queue_col_upload":           "Upload Limit",
+	"queue_col_download":         "Download Limit",
+	"queue_col_action":           "Thao Tác",
+	"queue_delete_btn":           "Xoá",
+	"queue_delete_confirm_title": "Xác Nhận Xoá Queue",
+	"queue_delete_confirm_msg":   "Bạn có chắc chắn muốn xoá Simple Queue '%s' trên Router không?",
 }
 
 var dictEN = map[string]string{
@@ -282,6 +303,7 @@ var dictEN = map[string]string{
 	// Main Tabs
 	"tab_dashboard": "📊 Dashboard",
 	"tab_network":   "🌐 Network Setup",
+	"tab_queue":     "⚡ Bandwidth",
 	"tab_security":  "🔒 Security",
 	"tab_ipsec":     "🔐 IPSec VPN",
 	"tab_backup":    "💾 Backup & Restore",
@@ -404,4 +426,24 @@ var dictEN = map[string]string{
 	// Backup prompts
 	"bk_restore_confirm_title": "Restore Configuration",
 	"bk_restore_confirm_msg":   "Are you sure you want to restore configuration from '%s'?\nRouter will automatically reboot!",
+
+	// Tab Queue
+	"queue_title":                "⚡ Bandwidth Management (Simple Queues)",
+	"queue_form_title":           "Add New Bandwidth Limit:",
+	"queue_name_label":           "Queue Name:",
+	"queue_target_label":         "Target Address (IP / Subnet):",
+	"queue_upload_label":         "Max Upload Limit:",
+	"queue_download_label":       "Max Download Limit:",
+	"queue_from_vlan_btn":        "📋 Pick Subnet from VLAN",
+	"queue_add_btn":              "➕ Add Bandwidth Queue",
+	"queue_list_title":           "Active Simple Queues List:",
+	"queue_refresh_btn":          "🔄 Refresh List",
+	"queue_col_name":             "Queue Name",
+	"queue_col_target":           "Target",
+	"queue_col_upload":           "Upload Limit",
+	"queue_col_download":         "Download Limit",
+	"queue_col_action":           "Actions",
+	"queue_delete_btn":           "Delete",
+	"queue_delete_confirm_title": "Confirm Queue Deletion",
+	"queue_delete_confirm_msg":   "Are you sure you want to delete Simple Queue '%s' from the Router?",
 }

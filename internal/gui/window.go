@@ -19,6 +19,7 @@ type MainWindow struct {
 	appTabs      *container.AppTabs
 	TabDashboard *TabDashboard
 	TabNetwork   *TabNetwork
+	TabQueue     *TabQueue
 	TabSecurity  *TabSecurity
 	TabIPSec     *TabIPSec
 	TabBackup    *TabBackup
@@ -47,6 +48,7 @@ func NewMainWindow(a fyne.App, w fyne.Window) *MainWindow {
 	tabNet.OnHostChanged = func(newHost string, onDone func(bool)) {
 		connBar.ReconnectToHost(newHost, onDone)
 	}
+	tabQueue := NewTabQueue(state, w)
 	tabSec := NewTabSecurity(state)
 	tabIPSec := NewTabIPSec(state)
 	tabBk := NewTabBackup(state, w)
@@ -60,6 +62,7 @@ func NewMainWindow(a fyne.App, w fyne.Window) *MainWindow {
 		LogPanel:     logPanel,
 		TabDashboard: tabDash,
 		TabNetwork:   tabNet,
+		TabQueue:     tabQueue,
 		TabSecurity:  tabSec,
 		TabIPSec:     tabIPSec,
 		TabBackup:    tabBk,
@@ -82,6 +85,7 @@ func (mw *MainWindow) ShowMainView() {
 	mw.appTabs = container.NewAppTabs(
 		container.NewTabItem(i18n.T("tab_dashboard"), mw.TabDashboard.BuildDesktopContainer()),
 		container.NewTabItem(i18n.T("tab_network"), mw.TabNetwork.BuildDesktopContainer()),
+		container.NewTabItem(i18n.T("tab_queue"), mw.TabQueue.BuildDesktopContainer()),
 		container.NewTabItem(i18n.T("tab_security"), mw.TabSecurity.BuildDesktopContainer()),
 		container.NewTabItem(i18n.T("tab_ipsec"), mw.TabIPSec.BuildDesktopContainer()),
 		container.NewTabItem(i18n.T("tab_backup"), mw.TabBackup.BuildDesktopContainer()),
@@ -130,13 +134,14 @@ func (mw *MainWindow) UpdateLanguage() {
 		if mw.Window != nil {
 			mw.Window.SetTitle(i18n.T("app_title"))
 		}
-		if mw.appTabs != nil && len(mw.appTabs.Items) >= 6 {
+		if mw.appTabs != nil && len(mw.appTabs.Items) >= 7 {
 			mw.appTabs.Items[0].Text = i18n.T("tab_dashboard")
 			mw.appTabs.Items[1].Text = i18n.T("tab_network")
-			mw.appTabs.Items[2].Text = i18n.T("tab_security")
-			mw.appTabs.Items[3].Text = i18n.T("tab_ipsec")
-			mw.appTabs.Items[4].Text = i18n.T("tab_backup")
-			mw.appTabs.Items[5].Text = i18n.T("tab_clear")
+			mw.appTabs.Items[2].Text = i18n.T("tab_queue")
+			mw.appTabs.Items[3].Text = i18n.T("tab_security")
+			mw.appTabs.Items[4].Text = i18n.T("tab_ipsec")
+			mw.appTabs.Items[5].Text = i18n.T("tab_backup")
+			mw.appTabs.Items[6].Text = i18n.T("tab_clear")
 			mw.appTabs.Refresh()
 		}
 		if mw.ConnBar != nil {
@@ -150,6 +155,9 @@ func (mw *MainWindow) UpdateLanguage() {
 		}
 		if mw.TabNetwork != nil {
 			mw.TabNetwork.UpdateLanguage()
+		}
+		if mw.TabQueue != nil {
+			mw.TabQueue.UpdateLanguage()
 		}
 		if mw.TabSecurity != nil {
 			mw.TabSecurity.UpdateLanguage()

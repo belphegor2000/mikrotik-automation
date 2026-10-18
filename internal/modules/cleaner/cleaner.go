@@ -54,6 +54,7 @@ func (c *Cleaner) CleanAll() {
 		{"Xoá IP Routes (custom)...", c.cleanRoutes},
 		{"Xoá Routing Tables...", c.cleanRoutingTables},
 		{"Xoá IPSec configuration...", c.cleanIPSec},
+		{"Xoá Simple Queues (MK-AUTO)...", c.cleanSimpleQueues},
 	}
 
 	for _, step := range steps {
@@ -336,4 +337,9 @@ func (c *Cleaner) cleanScripts() (int, error) {
 func (c *Cleaner) cleanSchedulers() (int, error) {
 	return c.client.RemoveByComment("system/scheduler", AppComment)
 }
+
+func (c *Cleaner) cleanSimpleQueues() (int, error) {
+	return c.client.RemoveByComment("queue/simple", AppComment)
+}
+
 

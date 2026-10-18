@@ -128,6 +128,12 @@ func TestLanguageSwitchingInGUI(t *testing.T) {
 	if mw.appTabs.Items[1].Text != "🌐 Cấu Hình Mạng" {
 		t.Errorf("Expected tab 1 to be '🌐 Cấu Hình Mạng', got '%s'", mw.appTabs.Items[1].Text)
 	}
+	if mw.appTabs.Items[2].Text != "⚡ Băng Thông" {
+		t.Errorf("Expected tab 2 to be '⚡ Băng Thông', got '%s'", mw.appTabs.Items[2].Text)
+	}
+	if mw.TabQueue.btnAdd.Text != "➕ Thêm Giới Hạn Băng Thông" {
+		t.Errorf("Expected queue_add_btn in VI, got '%s'", mw.TabQueue.btnAdd.Text)
+	}
 	if mw.TabSecurity.btnDisable.Text != "🚫 Tắt Dịch Vụ Không Dùng" {
 		t.Errorf("Expected sec_srv_btn in VI, got '%s'", mw.TabSecurity.btnDisable.Text)
 	}
@@ -140,6 +146,12 @@ func TestLanguageSwitchingInGUI(t *testing.T) {
 	}
 	if mw.appTabs.Items[1].Text != "🌐 Network Setup" {
 		t.Errorf("Expected tab 1 to be '🌐 Network Setup', got '%s'", mw.appTabs.Items[1].Text)
+	}
+	if mw.appTabs.Items[2].Text != "⚡ Bandwidth" {
+		t.Errorf("Expected tab 2 to be '⚡ Bandwidth', got '%s'", mw.appTabs.Items[2].Text)
+	}
+	if mw.TabQueue.btnAdd.Text != "➕ Add Bandwidth Queue" {
+		t.Errorf("Expected queue_add_btn in EN, got '%s'", mw.TabQueue.btnAdd.Text)
 	}
 	if mw.TabSecurity.btnDisable.Text != "🚫 Disable Insecure Services" {
 		t.Errorf("Expected sec_srv_btn in EN, got '%s'", mw.TabSecurity.btnDisable.Text)
@@ -159,6 +171,12 @@ func TestLanguageSwitchingInGUI(t *testing.T) {
 	}
 	if mw.appTabs.Items[1].Text != "🌐 Cấu Hình Mạng" {
 		t.Errorf("Expected tab 1 to revert to '🌐 Cấu Hình Mạng', got '%s'", mw.appTabs.Items[1].Text)
+	}
+	if mw.appTabs.Items[2].Text != "⚡ Băng Thông" {
+		t.Errorf("Expected tab 2 to revert to '⚡ Băng Thông', got '%s'", mw.appTabs.Items[2].Text)
+	}
+	if mw.TabQueue.btnAdd.Text != "➕ Thêm Giới Hạn Băng Thông" {
+		t.Errorf("Expected queue_add_btn in VI after toggle back, got '%s'", mw.TabQueue.btnAdd.Text)
 	}
 	if pref := a.Preferences().String("app_language"); pref != "vi" {
 		t.Errorf("Expected preference 'app_language' to be 'vi', got '%s'", pref)
