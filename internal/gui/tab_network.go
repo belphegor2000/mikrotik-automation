@@ -370,10 +370,11 @@ func (tn *TabNetwork) initVLANRows() {
 	tn.vlanRowsBox.Objects = nil
 	tn.vlanRows = nil
 
+	currentVLANs := tn.state.GetVLANs()
 	for i, d := range defaults {
 		var r *vlanInputRow
-		if i < len(tn.state.VLANs) {
-			v := tn.state.VLANs[i]
+		if i < len(currentVLANs) {
+			v := currentVLANs[i]
 			r = tn.createVLANRow(strconv.Itoa(v.VLANID), v.Name, v.CIDR)
 			r.entryID.SetText(strconv.Itoa(v.VLANID))
 			r.entryName.SetText(v.Name)
@@ -385,8 +386,8 @@ func (tn *TabNetwork) initVLANRows() {
 		tn.vlanRowsBox.Add(r.container)
 	}
 
-	for i := len(defaults); i < len(tn.state.VLANs); i++ {
-		v := tn.state.VLANs[i]
+	for i := len(defaults); i < len(currentVLANs); i++ {
+		v := currentVLANs[i]
 		r := tn.createVLANRow(strconv.Itoa(v.VLANID), v.Name, v.CIDR)
 		r.entryID.SetText(strconv.Itoa(v.VLANID))
 		r.entryName.SetText(v.Name)
@@ -445,7 +446,7 @@ func (tn *TabNetwork) clearAllVLANRows() {
 		r.lblGateway.SetText("-")
 	}
 	tn.vlanRowsBox.Refresh()
-	tn.state.VLANs = make([]vlan.VLANEntry, 0)
+	tn.state.SetVLANs(nil)
 	tn.state.Log("Đã làm mới toàn bộ danh sách về 5 dòng trống.")
 }
 
@@ -492,7 +493,7 @@ func (tn *TabNetwork) syncVLANsFromUI() ([]vlan.VLANEntry, error) {
 		result = append(result, v)
 	}
 
-	tn.state.VLANs = result
+	tn.state.SetVLANs(result)
 	return result, nil
 }
 
@@ -516,7 +517,7 @@ func (tn *TabNetwork) syncVLANsQuietly() {
 			result = append(result, v)
 		}
 	}
-	tn.state.VLANs = result
+	tn.state.SetVLANs(result)
 }
 
 func (tn *TabNetwork) BuildDesktopContainer() fyne.CanvasObject {
@@ -790,12 +791,12 @@ func (tn *TabNetwork) deployAll() {
 	}
 
 	tn.btnDeployAll.Disable()
-	tn.btnDeployAll.SetText("⏳ Đang triển khai toàn diện...")
+	tn.btnDeployAll.SetText("⏳ ...")
 
 	go func() {
 		defer fyne.Do(func() {
 			tn.btnDeployAll.Enable()
-			tn.btnDeployAll.SetText("🚀 Triển Khai Toàn Diện (WAN ➔ Bridge ➔ VLAN)")
+			tn.btnDeployAll.SetText(i18n.T("net_btn_deploy_all"))
 		})
 
 		params := orchestrator.NetworkDeployParams{

@@ -99,6 +99,9 @@ func (c *RESTClient) Disconnect() error {
 	c.user = ""
 	c.password = ""
 	c.identity = ""
+	if c.httpClient != nil {
+		c.httpClient.CloseIdleConnections()
+	}
 	return nil
 }
 

@@ -44,6 +44,7 @@ var pathMap = map[string]string{
 	"system/script":            "/system script",
 	"system/scheduler":         "/system scheduler",
 	"ip/cloud":                 "/ip cloud",
+	"queue/simple":             "/queue simple",
 }
 
 func restToCLI(path string) string {

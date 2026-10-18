@@ -1,9 +1,12 @@
 package gui
 
 import (
+	"sync"
 	"testing"
 
 	"fyne.io/fyne/v2/test"
+
+	"mikrotik-automation/internal/modules/vlan"
 )
 
 func TestLoginViewCreation(t *testing.T) {
@@ -181,5 +184,26 @@ func TestLanguageSwitchingInGUI(t *testing.T) {
 	if pref := a.Preferences().String("app_language"); pref != "vi" {
 		t.Errorf("Expected preference 'app_language' to be 'vi', got '%s'", pref)
 	}
+}
+
+func TestAppStateVLANConcurrency(t *testing.T) {
+	state := NewAppState(nil)
+	var wg sync.WaitGroup
+
+	for i := 0; i < 20; i++ {
+		wg.Add(2)
+		go func(id int) {
+			defer wg.Done()
+			entries := state.GetVLANs()
+			_ = len(entries)
+		}(i)
+		go func(id int) {
+			defer wg.Done()
+			state.SetVLANs([]vlan.VLANEntry{
+				{VLANID: id, Name: "test", CIDR: "192.168.1.0/24"},
+			})
+		}(i)
+	}
+	wg.Wait()
 }
 

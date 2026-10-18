@@ -203,8 +203,8 @@ func (cb *ConnectionBar) connect() {
 	proto := cb.selectProto.Selected
 
 	cb.btnConnect.Disable()
-	cb.btnConnect.SetText("⏳ Đang kết nối...")
-	cb.updateStatusText("🟡 Đang kết nối...")
+	cb.btnConnect.SetText(i18n.T("conn_btn_ing"))
+	cb.updateStatusText(i18n.T("conn_trying"))
 
 	go func() {
 		var client api.MikrotikClient
@@ -217,16 +217,16 @@ func (cb *ConnectionBar) connect() {
 		ident, err := client.Connect(host, user, pass, port, false)
 		fyne.Do(func() {
 			if err != nil {
-				cb.state.Log(fmt.Sprintf("✗ Kết nối %s thất bại: %v", proto, err))
-				cb.updateStatusText("🔴 Kết nối thất bại")
+				cb.state.Log(fmt.Sprintf("✗ %s (%s): %v", i18n.T("conn_failed"), proto, err))
+				cb.updateStatusText(i18n.T("conn_failed"))
 				cb.btnConnect.Enable()
-				cb.btnConnect.SetText("🔌 Kết nối")
+				cb.btnConnect.SetText(i18n.T("conn_btn"))
 			} else {
 				cb.state.SetClient(client, proto)
-				cb.state.Log(fmt.Sprintf("✓ Đã kết nối đến router: %s (%s qua %s:%d)", ident, proto, host, port))
+				cb.state.Log(fmt.Sprintf("✓ %s: %s (%s qua %s:%d)", i18n.T("conn_btn_done"), ident, proto, host, port))
 				statusStr := fmt.Sprintf("🟢 %s (%s)", ident, proto)
 				cb.updateStatusText(statusStr)
-				cb.btnConnect.SetText("✓ Đã kết nối")
+				cb.btnConnect.SetText(i18n.T("conn_btn_done"))
 				cb.btnDisconn.Enable()
 
 				// Trigger on-connect hooks
@@ -243,11 +243,11 @@ func (cb *ConnectionBar) disconnect() {
 	if c != nil {
 		_ = c.Disconnect()
 	}
-	cb.updateStatusText("⚪ Đã ngắt kết nối")
+	cb.updateStatusText(i18n.T("conn_off"))
 	cb.btnConnect.Enable()
-	cb.btnConnect.SetText("🔌 Kết nối")
+	cb.btnConnect.SetText(i18n.T("conn_btn"))
 	cb.btnDisconn.Disable()
-	cb.state.Log("Đã ngắt kết nối router.")
+	cb.state.Log(i18n.T("conn_off"))
 }
 
 func (cb *ConnectionBar) GetConnectedHost() string {

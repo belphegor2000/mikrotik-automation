@@ -275,14 +275,15 @@ func (tq *TabQueue) UpdateLanguage() {
 }
 
 func (tq *TabQueue) pickFromVLANs() {
-	if len(tq.state.VLANs) == 0 {
+	vlans := tq.state.GetVLANs()
+	if len(vlans) == 0 {
 		tq.state.Log("⚠ Chưa có danh sách VLAN trong ứng dụng. Vui lòng cấu hình VLAN tại Tab Cấu Hình Mạng trước.")
 		return
 	}
 
-	options := make([]string, 0, len(tq.state.VLANs))
+	options := make([]string, 0, len(vlans))
 	vlanMap := make(map[string]struct{ name, cidr string })
-	for _, v := range tq.state.VLANs {
+	for _, v := range vlans {
 		opt := fmt.Sprintf("VLAN %d - %s (%s)", v.VLANID, v.Name, v.CIDR)
 		options = append(options, opt)
 		vlanMap[opt] = struct{ name, cidr string }{

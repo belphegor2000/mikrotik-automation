@@ -11,7 +11,7 @@ type AppState struct {
 	Client    api.MikrotikClient
 	Proto     string // "REST" or "SSH"
 	LogPanel  *LogPanel
-	VLANs     []vlan.VLANEntry
+	vlans     []vlan.VLANEntry
 	OnConnect []func()
 	mu        sync.RWMutex
 }
@@ -21,7 +21,7 @@ func NewAppState(logPanel *LogPanel) *AppState {
 		Client:   api.NewRESTClient(),
 		Proto:    "REST",
 		LogPanel: logPanel,
-		VLANs:    make([]vlan.VLANEntry, 0),
+		vlans:    make([]vlan.VLANEntry, 0),
 	}
 }
 
@@ -42,4 +42,25 @@ func (s *AppState) GetClient() api.MikrotikClient {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.Client
+}
+
+// GetVLANs returns a thread-safe copy of the current VLAN entries.
+func (s *AppState) GetVLANs() []vlan.VLANEntry {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	result := make([]vlan.VLANEntry, len(s.vlans))
+	copy(result, s.vlans)
+	return result
+}
+
+// SetVLANs safely updates the stored VLAN entries under write lock.
+func (s *AppState) SetVLANs(entries []vlan.VLANEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if entries == nil {
+		s.vlans = make([]vlan.VLANEntry, 0)
+		return
+	}
+	s.vlans = make([]vlan.VLANEntry, len(entries))
+	copy(s.vlans, entries)
 }

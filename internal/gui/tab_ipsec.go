@@ -182,12 +182,13 @@ func (ti *TabIPSec) detectLocalSubnets() {
 }
 
 func (ti *TabIPSec) loadFromAppVLANs() {
-	if len(ti.state.VLANs) == 0 {
+	vlans := ti.state.GetVLANs()
+	if len(vlans) == 0 {
 		ti.state.Log("⚠ Danh sách VLAN ứng dụng (Tab Network) đang trống.")
 		return
 	}
 	var subnets []string
-	for _, v := range ti.state.VLANs {
+	for _, v := range vlans {
 		if v.CIDR != "" {
 			subnets = append(subnets, v.CIDR)
 		}

@@ -33,6 +33,7 @@ type TabDashboard struct {
 	progHDD          *widget.ProgressBar
 	lblHDD           *widget.Label
 	ifaceList        *widget.List
+	ifaceHeaders     []*widget.Label
 	ifaceData        []dashboard.InterfaceItem
 	btnRefresh       *widget.Button
 	btnReboot        *widget.Button
@@ -71,7 +72,15 @@ func NewTabDashboard(state *AppState, w fyne.Window) *TabDashboard {
 	td.lblRAM = widget.NewLabel("RAM: 0 MB / 0 MB (0%)")
 
 	td.progHDD = widget.NewProgressBar()
-	td.lblHDD = widget.NewLabel("Ổ Cứng: 0 MB / 0 MB (0%)")
+	td.lblHDD = widget.NewLabel(fmt.Sprintf("%s 0 MB / 0 MB (0%%)", i18n.T("dash_storage")))
+
+	td.ifaceHeaders = []*widget.Label{
+		widget.NewLabelWithStyle(i18n.T("dash_col_name"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle(i18n.T("dash_col_type"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle(i18n.T("dash_col_status"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle(i18n.T("dash_col_mac"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle(i18n.T("dash_col_comment"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+	}
 
 	// Interfaces list (Desktop 5-column table)
 	td.ifaceData = make([]dashboard.InterfaceItem, 0)
@@ -81,11 +90,11 @@ func NewTabDashboard(state *AppState, w fyne.Window) *TabDashboard {
 		},
 		func() fyne.CanvasObject {
 			return container.NewGridWithColumns(5,
-				widget.NewLabel("Name"),
-				widget.NewLabel("Type"),
-				widget.NewLabel("Status"),
-				widget.NewLabel("MAC"),
-				widget.NewLabel("Comment"),
+				widget.NewLabel(""),
+				widget.NewLabel(""),
+				widget.NewLabel(""),
+				widget.NewLabel(""),
+				widget.NewLabel(""),
 			)
 		},
 		func(id widget.ListItemID, obj fyne.CanvasObject) {
@@ -97,11 +106,11 @@ func NewTabDashboard(state *AppState, w fyne.Window) *TabDashboard {
 			box.Objects[0].(*widget.Label).SetText(item.Name)
 			box.Objects[1].(*widget.Label).SetText(item.Type)
 
-			stText := "🔴 Link Down"
+			stText := i18n.T("dash_link_down")
 			if item.Disabled {
 				stText = "⚪ Disabled"
 			} else if item.Running {
-				stText = "🟢 Link Up"
+				stText = i18n.T("dash_link_up")
 			}
 			box.Objects[2].(*widget.Label).SetText(stText)
 			box.Objects[3].(*widget.Label).SetText(item.MAC)
@@ -134,6 +143,14 @@ func (td *TabDashboard) BuildDesktopContainer() fyne.CanvasObject {
 		container.NewVBox(td.lblHDD, td.progHDD),
 	)
 	btnBar := container.NewBorder(nil, nil, td.btnRefresh, td.btnReboot)
+
+	var headerObjects []fyne.CanvasObject
+	for _, h := range td.ifaceHeaders {
+		headerObjects = append(headerObjects, h)
+	}
+	headerRow := container.NewGridWithColumns(5, headerObjects...)
+	tableContainer := container.NewBorder(headerRow, nil, nil, nil, td.ifaceList)
+
 	return container.NewBorder(
 		container.NewVBox(
 			td.lblTitle,
@@ -146,7 +163,7 @@ func (td *TabDashboard) BuildDesktopContainer() fyne.CanvasObject {
 		btnBar,
 		nil,
 		nil,
-		td.ifaceList,
+		tableContainer,
 	)
 }
 
@@ -179,6 +196,16 @@ func (td *TabDashboard) UpdateLanguage() {
 	if td.btnReboot != nil {
 		td.btnReboot.SetText(i18n.T("dash_reboot"))
 	}
+	if len(td.ifaceHeaders) >= 5 {
+		td.ifaceHeaders[0].SetText(i18n.T("dash_col_name"))
+		td.ifaceHeaders[1].SetText(i18n.T("dash_col_type"))
+		td.ifaceHeaders[2].SetText(i18n.T("dash_col_status"))
+		td.ifaceHeaders[3].SetText(i18n.T("dash_col_mac"))
+		td.ifaceHeaders[4].SetText(i18n.T("dash_col_comment"))
+	}
+	if td.ifaceList != nil {
+		td.ifaceList.Refresh()
+	}
 }
 
 func (td *TabDashboard) Refresh() {
@@ -189,7 +216,7 @@ func (td *TabDashboard) Refresh() {
 	}
 
 	td.btnRefresh.Disable()
-	td.btnRefresh.SetText("⏳ Đang tải...")
+	td.btnRefresh.SetText(i18n.T("dash_loading"))
 
 	go func() {
 		svc := dashboard.NewService(c, td.state.Log)
@@ -215,7 +242,7 @@ func (td *TabDashboard) Refresh() {
 			td.lblRAM.SetText(fmt.Sprintf("RAM: %.1fMB / %.1fMB (%.1f%%)", info.UsedMemMB, info.TotalMemMB, info.MemPct))
 
 			td.progHDD.SetValue(info.HDDPct / 100.0)
-			td.lblHDD.SetText(fmt.Sprintf("Ổ Cứng: %.1fMB / %.1fMB (%.1f%%)", info.UsedHDDMB, info.TotalHDDMB, info.HDDPct))
+			td.lblHDD.SetText(fmt.Sprintf("%s %.1fMB / %.1fMB (%.1f%%)", i18n.T("dash_storage"), info.UsedHDDMB, info.TotalHDDMB, info.HDDPct))
 
 			if err2 == nil {
 				td.ifaceData = ifaces
