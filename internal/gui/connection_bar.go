@@ -8,16 +8,24 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"mikrotik-automation/internal/api"
 	"mikrotik-automation/internal/i18n"
+	"mikrotik-automation/internal/profile"
 )
+
 
 type ConnectionBar struct {
 	state          *AppState
 	app            fyne.App
+	profileMgr     *profile.ProfileManager
+	lblProfile     *widget.Label
+	selectProfile  *widget.Select
+	btnSaveProfile *widget.Button
+	btnDelProfile  *widget.Button
 	lblProtoTitle  *widget.Label
 	lblHostTitle   *widget.Label
 	lblPortTitle   *widget.Label
@@ -34,7 +42,10 @@ type ConnectionBar struct {
 	btnLang        *widget.Button
 	btnTheme       *widget.Button
 	container      *fyne.Container
+	OnStatusChanged func(status string, isConnected bool)
+	activeDialog   dialog.Dialog
 }
+
 
 func NewConnectionBar(state *AppState, a fyne.App) *ConnectionBar {
 	cb := &ConnectionBar{state: state, app: a}
@@ -44,6 +55,35 @@ func NewConnectionBar(state *AppState, a fyne.App) *ConnectionBar {
 	cb.lblPortTitle = widget.NewLabelWithStyle(i18n.T("conn_port"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	cb.lblUserTitle = widget.NewLabelWithStyle(i18n.T("conn_user"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	cb.lblPassTitle = widget.NewLabelWithStyle(i18n.T("conn_pass"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+
+	// Profile / Address Book
+	cb.profileMgr, _ = profile.NewProfileManager()
+	cb.lblProfile = widget.NewLabelWithStyle(i18n.T("conn_profile_select"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	cb.selectProfile = widget.NewSelect([]string{i18n.T("conn_profile_prompt")}, func(selected string) {
+		if selected == "" || selected == i18n.T("conn_profile_prompt") {
+			return
+		}
+		if cb.profileMgr != nil {
+			if p, ok := cb.profileMgr.FindProfile(selected); ok {
+				cb.entryHost.SetText(p.Host)
+				cb.entryPort.SetText(fmt.Sprintf("%d", p.Port))
+				cb.entryUser.SetText(p.User)
+				cb.entryPass.SetText(p.Password)
+				cb.selectProto.SetSelected(p.Proto)
+				cb.state.Log(fmt.Sprintf("✓ Đã nạp thông tin Router: %s (%s:%d)", p.Name, p.Host, p.Port))
+			}
+		}
+	})
+	cb.selectProfile.SetSelected(i18n.T("conn_profile_prompt"))
+
+	cb.btnSaveProfile = widget.NewButton(i18n.T("conn_profile_save"), func() {
+		cb.promptSaveProfile()
+	})
+	cb.btnDelProfile = widget.NewButton(i18n.T("conn_profile_delete"), func() {
+		cb.deleteCurrentProfile()
+	})
+
+	cb.reloadProfileOptions()
 
 	cb.entryHost = widget.NewEntry()
 	cb.entryHost.SetText("192.168.88.1")
@@ -98,9 +138,15 @@ func NewConnectionBar(state *AppState, a fyne.App) *ConnectionBar {
 	return cb
 }
 
+
 func (cb *ConnectionBar) updateStatusText(text string) {
 	if cb.lblStatus != nil {
 		cb.lblStatus.SetText(text)
+	}
+	if cb.OnStatusChanged != nil {
+		c := cb.state.GetClient()
+		isConnected := c != nil && c.IsConnected()
+		cb.OnStatusChanged(text, isConnected)
 	}
 }
 
@@ -143,6 +189,15 @@ func (cb *ConnectionBar) UpdateLanguage() {
 			cb.btnTheme.SetText(i18n.T("theme_light"))
 		}
 	}
+	if cb.lblProfile != nil {
+		cb.lblProfile.SetText(i18n.T("conn_profile_select"))
+	}
+	if cb.btnSaveProfile != nil {
+		cb.btnSaveProfile.SetText(i18n.T("conn_profile_save"))
+	}
+	if cb.btnDelProfile != nil {
+		cb.btnDelProfile.SetText(i18n.T("conn_profile_delete"))
+	}
 	c := cb.state.GetClient()
 	if c == nil || !c.IsConnected() {
 		cb.updateStatusText(i18n.T("conn_not"))
@@ -155,22 +210,156 @@ func (cb *ConnectionBar) UpdateLanguage() {
 	}
 }
 
+func (cb *ConnectionBar) reloadProfileOptions() {
+	if cb.profileMgr == nil || cb.selectProfile == nil {
+		return
+	}
+	profs := cb.profileMgr.ListProfiles()
+	opts := []string{i18n.T("conn_profile_prompt")}
+	for _, p := range profs {
+		opts = append(opts, p.Name)
+	}
+	cb.selectProfile.Options = opts
+	cb.selectProfile.Refresh()
+}
+
+func (cb *ConnectionBar) promptSaveProfile() {
+	host := strings.TrimSpace(cb.entryHost.Text)
+	if host == "" {
+		cb.state.Log("⚠ IP Router không được để trống khi lưu profile.")
+		return
+	}
+	var parentWin fyne.Window
+	if cb.app != nil && len(cb.app.Driver().AllWindows()) > 0 {
+		parentWin = cb.app.Driver().AllWindows()[0]
+	}
+
+	nameEntry := widget.NewEntry()
+	nameEntry.SetPlaceHolder("vd: Chi nhánh Quận 1, Router Kho, Văn phòng...")
+	nameEntry.SetText("Router " + host)
+
+	d := dialog.NewCustomConfirm(
+		"Lưu Vào Danh Bạ Router",
+		"Lưu",
+		"Huỷ",
+		container.NewVBox(widget.NewLabel("Nhập tên gợi nhớ cho Router này:"), nameEntry),
+		func(ok bool) {
+			if !ok {
+				return
+			}
+			name := strings.TrimSpace(nameEntry.Text)
+			if name == "" {
+				name = "Router " + host
+			}
+			port, _ := strconv.Atoi(cb.entryPort.Text)
+			if port <= 0 {
+				if cb.selectProto.Selected == "SSH" {
+					port = 22
+				} else {
+					port = 80
+				}
+			}
+			prof := profile.DeviceProfile{
+				Name:     name,
+				Host:     host,
+				Port:     port,
+				User:     cb.entryUser.Text,
+				Password: cb.entryPass.Text,
+				Proto:    cb.selectProto.Selected,
+			}
+			if err := cb.profileMgr.SaveProfile(prof); err != nil {
+				cb.state.Log(fmt.Sprintf("⚠ Lỗi lưu profile: %v", err))
+			} else {
+				cb.state.Log(fmt.Sprintf("✓ Đã lưu '%s' (%s) vào danh bạ an toàn.", name, host))
+				cb.reloadProfileOptions()
+				cb.selectProfile.SetSelected(name)
+			}
+		},
+		parentWin,
+	)
+	if parentWin != nil {
+		d.Show()
+	}
+}
+
+func (cb *ConnectionBar) deleteCurrentProfile() {
+	sel := cb.selectProfile.Selected
+	if sel == "" || sel == i18n.T("conn_profile_prompt") {
+		return
+	}
+	if err := cb.profileMgr.DeleteProfile(sel); err == nil {
+		cb.state.Log(fmt.Sprintf("✓ Đã xoá profile '%s' khỏi danh bạ.", sel))
+		cb.reloadProfileOptions()
+		cb.selectProfile.SetSelected(i18n.T("conn_profile_prompt"))
+	}
+}
+
 func (cb *ConnectionBar) toggleTheme() {
 	if cb.app == nil {
 		return
 	}
 	if CurrentThemeVariant == theme.VariantDark {
-		cb.app.Settings().SetTheme(NewCustomAppTheme(theme.VariantLight))
+		CurrentThemeVariant = theme.VariantLight
+		cb.app.Settings().SetTheme(NewEnterpriseTheme(false))
 		cb.btnTheme.SetText(i18n.T("theme_dark"))
 		cb.state.Log("Đã chuyển sang giao diện Sáng (Light mode).")
 	} else {
-		cb.app.Settings().SetTheme(NewCustomAppTheme(theme.VariantDark))
+		CurrentThemeVariant = theme.VariantDark
+		cb.app.Settings().SetTheme(NewEnterpriseTheme(true))
 		cb.btnTheme.SetText(i18n.T("theme_light"))
 		cb.state.Log("Đã chuyển sang giao diện Tối (Dark mode).")
 	}
 }
 
+// ShowDialog displays the connection modal over the given parent window.
+func (cb *ConnectionBar) ShowDialog(parent fyne.Window) {
+	if parent == nil {
+		return
+	}
+
+	profileBar := container.NewBorder(
+		nil, nil,
+		cb.lblProfile,
+		container.NewHBox(cb.btnSaveProfile, cb.btnDelProfile),
+		cb.selectProfile,
+	)
+
+	rowInputs1 := container.NewGridWithColumns(3,
+		container.NewVBox(cb.lblProtoTitle, cb.selectProto),
+		container.NewVBox(cb.lblHostTitle, cb.entryHost),
+		container.NewVBox(cb.lblPortTitle, cb.entryPort),
+	)
+	rowInputs2 := container.NewGridWithColumns(2,
+		container.NewVBox(cb.lblUserTitle, cb.entryUser),
+		container.NewVBox(cb.lblPassTitle, cb.entryPass),
+	)
+
+	actionBox := container.NewHBox(cb.btnConnect, cb.btnDisconn)
+
+	content := container.NewVBox(
+		widget.NewLabelWithStyle(i18n.T("conn_modal_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewSeparator(),
+		container.NewPadded(profileBar),
+		widget.NewSeparator(),
+		rowInputs1,
+		rowInputs2,
+		widget.NewSeparator(),
+		container.NewBorder(nil, nil, cb.lblStatus, actionBox),
+	)
+
+	cb.activeDialog = dialog.NewCustom(i18n.T("conn_modal_title"), i18n.T("conn_modal_close"), container.NewPadded(content), parent)
+	cb.activeDialog.Resize(fyne.NewSize(540, 360))
+	cb.activeDialog.Show()
+}
+
 func (cb *ConnectionBar) BuildDesktopContainer() fyne.CanvasObject {
+	profileBar := container.NewBorder(
+		nil, nil,
+		cb.lblProfile,
+		container.NewHBox(cb.btnSaveProfile, cb.btnDelProfile),
+		cb.selectProfile,
+	)
+
 	rowInputs := container.NewGridWithColumns(5,
 		container.NewVBox(cb.lblProtoTitle, cb.selectProto),
 		container.NewVBox(cb.lblHostTitle, cb.entryHost),
@@ -181,9 +370,15 @@ func (cb *ConnectionBar) BuildDesktopContainer() fyne.CanvasObject {
 
 	actionControls := container.NewHBox(cb.btnConnect, cb.btnDisconn, cb.btnLang, cb.btnTheme)
 	statusCard := container.NewBorder(nil, nil, cb.lblStatus, actionControls)
-	cb.container = container.NewVBox(container.NewPadded(rowInputs), widget.NewSeparator(), statusCard)
+	cb.container = container.NewVBox(
+		container.NewPadded(profileBar),
+		container.NewPadded(rowInputs),
+		widget.NewSeparator(),
+		statusCard,
+	)
 	return cb.container
 }
+
 
 func (cb *ConnectionBar) Container() fyne.CanvasObject {
 	if cb.container == nil || len(cb.container.Objects) == 0 {
@@ -228,6 +423,10 @@ func (cb *ConnectionBar) connect() {
 				cb.updateStatusText(statusStr)
 				cb.btnConnect.SetText(i18n.T("conn_btn_done"))
 				cb.btnDisconn.Enable()
+
+				if cb.activeDialog != nil {
+					cb.activeDialog.Hide()
+				}
 
 				// Trigger on-connect hooks
 				for _, hook := range cb.state.OnConnect {

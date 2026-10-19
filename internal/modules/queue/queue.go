@@ -179,3 +179,255 @@ func (c *Configurator) DeleteQueue(id string) error {
 	c.log(fmt.Sprintf("✓ Đã xoá Simple Queue (ID: %s) thành công.", id))
 	return nil
 }
+
+const (
+	CakeQueueName     = "Smart-CAKE-QoS"
+	CakeQueueNameWAN1 = "Smart-CAKE-WAN1"
+	CakeQueueNameWAN2 = "Smart-CAKE-WAN2"
+	CakeTypeRx        = "cake-rx"
+	CakeTypeTx        = "cake-tx"
+)
+
+// EnsureCakeQueueTypes creates the cake-rx and cake-tx queue types in RouterOS 7.
+func (c *Configurator) EnsureCakeQueueTypes() error {
+	types, err := c.client.Get("queue/type")
+	if err != nil {
+		return err
+	}
+
+	hasRx := false
+	hasTx := false
+	for _, t := range types {
+		name, _ := t["name"].(string)
+		if name == CakeTypeRx {
+			hasRx = true
+		}
+		if name == CakeTypeTx {
+			hasTx = true
+		}
+	}
+
+	if !hasRx {
+		c.log("  ▶ Tạo Queue Type 'cake-rx' (Diffserv4, Triple-Isolate, RTT 100ms)...")
+		_, _ = c.client.Add("queue/type", map[string]interface{}{
+			"name":          CakeTypeRx,
+			"kind":          "cake",
+			"cake-diffserv": "diffserv4",
+			"cake-flowmode": "triple-isolate",
+			"cake-rtt":      "100ms",
+			"cake-nat":      "yes",
+			"cake-memlimit": "32M",
+		})
+	}
+
+	if !hasTx {
+		c.log("  ▶ Tạo Queue Type 'cake-tx' (Diffserv4, Triple-Isolate, RTT 100ms)...")
+		_, _ = c.client.Add("queue/type", map[string]interface{}{
+			"name":          CakeTypeTx,
+			"kind":          "cake",
+			"cake-diffserv": "diffserv4",
+			"cake-flowmode": "triple-isolate",
+			"cake-rtt":      "100ms",
+			"cake-nat":      "yes",
+			"cake-memlimit": "32M",
+		})
+	}
+	return nil
+}
+
+// ConfigureCakeQoS creates or updates the Smart CAKE QoS Simple Queue at 95% line rate for Single WAN.
+func (c *Configurator) ConfigureCakeQoS(downMbps, upMbps float64) error {
+	if c.client == nil || !c.client.IsConnected() {
+		return fmt.Errorf("chưa kết nối đến router")
+	}
+	if downMbps <= 0 || upMbps <= 0 {
+		return fmt.Errorf("tốc độ gói cước Down/Up phải lớn hơn 0")
+	}
+
+	c.log(fmt.Sprintf("▶ Đang cấu hình Smart CAKE QoS (Gói cước: Down %.0fM / Up %.0fM)...", downMbps, upMbps))
+
+	// Step 1: Ensure cake queue types
+	if err := c.EnsureCakeQueueTypes(); err != nil {
+		c.log(fmt.Sprintf("  ⚠ Cảnh báo kiểm tra queue type: %v", err))
+	}
+
+	// Clean up any dual-wan queues if present
+	_ = c.removeQueueByName(CakeQueueNameWAN1)
+	_ = c.removeQueueByName(CakeQueueNameWAN2)
+
+	// Step 2: Compute 95% bandwidth limit
+	down95k := int(downMbps * 0.95 * 1000)
+	up95k := int(upMbps * 0.95 * 1000)
+	maxLimit := fmt.Sprintf("%dk/%dk", up95k, down95k)
+	c.log(fmt.Sprintf("  • Giới hạn 95%% chống Bufferbloat: Up %d Kbps, Down %d Kbps (Max-Limit: %s)", up95k, down95k, maxLimit))
+
+	comment := fmt.Sprintf("%s Smart CAKE QoS (Gói %.0fM/%.0fM - Giới hạn 95%%)", AutoQueueComment, upMbps, downMbps)
+
+	if err := c.upsertCakeQueue(CakeQueueName, "0.0.0.0/0", maxLimit, comment); err != nil {
+		return fmt.Errorf("tạo CAKE QoS thất bại: %w", err)
+	}
+
+	c.log(fmt.Sprintf("✓ Đã kích hoạt thành công Smart CAKE QoS! (Triệt tiêu Bufferbloat, ưu tiên Gaming/VoIP, 95%% = %s)", maxLimit))
+	return nil
+}
+
+// ConfigureCakeQoSDual creates or updates 2 separate Smart CAKE QoS Simple Queues for Dual WAN lines.
+func (c *Configurator) ConfigureCakeQoSDual(wan1Down, wan1Up, wan2Down, wan2Up float64, wan1Iface, wan2Iface string) error {
+	if c.client == nil || !c.client.IsConnected() {
+		return fmt.Errorf("chưa kết nối đến router")
+	}
+	if wan1Down <= 0 || wan1Up <= 0 || wan2Down <= 0 || wan2Up <= 0 {
+		return fmt.Errorf("tốc độ gói cước WAN 1 và WAN 2 phải lớn hơn 0")
+	}
+
+	if wan1Iface == "" {
+		wan1Iface = "pppoe-wan1"
+	}
+	if wan2Iface == "" {
+		wan2Iface = "pppoe-wan2"
+	}
+
+	c.log(fmt.Sprintf("▶ Đang cấu hình Smart CAKE QoS cho Dual WAN (WAN1: %.0fM/%.0fM, WAN2: %.0fM/%.0fM)...", wan1Down, wan1Up, wan2Down, wan2Up))
+
+	if err := c.EnsureCakeQueueTypes(); err != nil {
+		c.log(fmt.Sprintf("  ⚠ Cảnh báo kiểm tra queue type: %v", err))
+	}
+
+	// Remove single-wan queue if present to avoid conflict
+	_ = c.removeQueueByName(CakeQueueName)
+
+	// Calculate 95% limits
+	down1_95 := int(wan1Down * 0.95 * 1000)
+	up1_95 := int(wan1Up * 0.95 * 1000)
+	maxLimit1 := fmt.Sprintf("%dk/%dk", up1_95, down1_95)
+
+	down2_95 := int(wan2Down * 0.95 * 1000)
+	up2_95 := int(wan2Up * 0.95 * 1000)
+	maxLimit2 := fmt.Sprintf("%dk/%dk", up2_95, down2_95)
+
+	comment1 := fmt.Sprintf("%s Smart CAKE QoS WAN1 (Gói %.0fM/%.0fM - 95%%)", AutoQueueComment, wan1Up, wan1Down)
+	comment2 := fmt.Sprintf("%s Smart CAKE QoS WAN2 (Gói %.0fM/%.0fM - 95%%)", AutoQueueComment, wan2Up, wan2Down)
+
+	c.log(fmt.Sprintf("  • Cấu hình WAN 1 (%s): Up %dK, Down %dK (Max: %s)...", wan1Iface, up1_95, down1_95, maxLimit1))
+	if err := c.upsertCakeQueue(CakeQueueNameWAN1, wan1Iface, maxLimit1, comment1); err != nil {
+		return fmt.Errorf("cấu hình CAKE WAN1 thất bại: %w", err)
+	}
+
+	c.log(fmt.Sprintf("  • Cấu hình WAN 2 (%s): Up %dK, Down %dK (Max: %s)...", wan2Iface, up2_95, down2_95, maxLimit2))
+	if err := c.upsertCakeQueue(CakeQueueNameWAN2, wan2Iface, maxLimit2, comment2); err != nil {
+		return fmt.Errorf("cấu hình CAKE WAN2 thất bại: %w", err)
+	}
+
+	c.log(fmt.Sprintf("✓ Đã kích hoạt Smart CAKE QoS cho cả 2 đường ISP! (WAN1: %s, WAN2: %s)", maxLimit1, maxLimit2))
+	return nil
+}
+
+func (c *Configurator) removeQueueByName(targetName string) error {
+	queues, err := c.client.Get("queue/simple")
+	if err != nil {
+		return err
+	}
+	for _, q := range queues {
+		name, _ := q["name"].(string)
+		if name == targetName {
+			if id, ok := q[".id"].(string); ok && id != "" {
+				_ = c.client.Remove("queue/simple", id)
+			}
+		}
+	}
+	return nil
+}
+
+func (c *Configurator) upsertCakeQueue(name, target, maxLimit, comment string) error {
+	queues, err := c.client.Get("queue/simple")
+	var existingID string
+	if err == nil {
+		for _, q := range queues {
+			n, _ := q["name"].(string)
+			if n == name {
+				existingID, _ = q[".id"].(string)
+				break
+			}
+		}
+	}
+
+	if existingID != "" {
+		return c.client.Set("queue/simple", existingID, map[string]interface{}{
+			"target":    target,
+			"max-limit": maxLimit,
+			"queue":     fmt.Sprintf("%s/%s", CakeTypeTx, CakeTypeRx),
+			"comment":   comment,
+		})
+	}
+
+	_, err = c.client.Add("queue/simple", map[string]interface{}{
+		"name":      name,
+		"target":    target,
+		"queue":     fmt.Sprintf("%s/%s", CakeTypeTx, CakeTypeRx),
+		"max-limit": maxLimit,
+		"comment":   comment,
+	})
+	return err
+}
+
+// RemoveCakeQoS deletes all Smart-CAKE-QoS queues (Single or Dual WAN).
+func (c *Configurator) RemoveCakeQoS() error {
+	if c.client == nil || !c.client.IsConnected() {
+		return fmt.Errorf("chưa kết nối đến router")
+	}
+
+	queues, err := c.client.Get("queue/simple")
+	if err != nil {
+		return err
+	}
+
+	c.log("▶ Đang gỡ bỏ Smart CAKE QoS...")
+	for _, q := range queues {
+		name, _ := q["name"].(string)
+		if name == CakeQueueName || name == CakeQueueNameWAN1 || name == CakeQueueNameWAN2 {
+			if id, ok := q[".id"].(string); ok && id != "" {
+				_ = c.client.Remove("queue/simple", id)
+			}
+		}
+	}
+	c.log("✓ Đã gỡ bỏ Smart CAKE QoS thành công.")
+	return nil
+}
+
+// GetCakeStatus checks if Smart CAKE QoS is currently deployed.
+func (c *Configurator) GetCakeStatus() (active bool, maxLimit string, err error) {
+	if c.client == nil || !c.client.IsConnected() {
+		return false, "", nil
+	}
+	queues, err := c.client.Get("queue/simple")
+	if err != nil {
+		return false, "", err
+	}
+	hasWAN1, hasWAN2, hasSingle := false, false, false
+	var limWAN1, limWAN2, limSingle string
+	for _, q := range queues {
+		name, _ := q["name"].(string)
+		ml, _ := q["max-limit"].(string)
+		if name == CakeQueueName {
+			hasSingle = true
+			limSingle = ml
+		} else if name == CakeQueueNameWAN1 {
+			hasWAN1 = true
+			limWAN1 = ml
+		} else if name == CakeQueueNameWAN2 {
+			hasWAN2 = true
+			limWAN2 = ml
+		}
+	}
+	if hasWAN1 && hasWAN2 {
+		return true, fmt.Sprintf("Dual WAN [WAN1: %s | WAN2: %s]", limWAN1, limWAN2), nil
+	}
+	if hasSingle {
+		return true, limSingle, nil
+	}
+	if hasWAN1 {
+		return true, fmt.Sprintf("WAN1 (%s)", limWAN1), nil
+	}
+	return false, "", nil
+}
+

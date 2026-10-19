@@ -97,6 +97,7 @@ type LogPanel struct {
 	expandedState   int // 0: normal (35%), 1: maximized (80%)
 	mu              sync.Mutex
 	logLines        []string
+	OnLog           func(msg string)
 }
 
 func NewLogPanel(w fyne.Window) *LogPanel {
@@ -191,7 +192,6 @@ func (l *LogPanel) Container() fyne.CanvasObject {
 
 func (l *LogPanel) Log(msg string) {
 	l.mu.Lock()
-	defer l.mu.Unlock()
 
 	ts := time.Now().Format("15:04:05")
 	line := fmt.Sprintf("[%s] %s", ts, msg)
@@ -201,10 +201,16 @@ func (l *LogPanel) Log(msg string) {
 	}
 
 	fullText := strings.Join(l.logLines, "\n")
+	onLog := l.OnLog
+	l.mu.Unlock()
+
 	fyne.Do(func() {
 		l.entry.SetText(fullText)
 		l.scroll.ScrollToBottom()
 	})
+	if onLog != nil {
+		onLog(msg)
+	}
 }
 
 func (l *LogPanel) Clear() {

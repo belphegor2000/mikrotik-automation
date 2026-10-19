@@ -52,9 +52,11 @@ func (c *Cleaner) CleanAll() {
 		{"Xoá System Scripts (MK-AUTO)...", c.cleanScripts},
 		{"Xoá System Schedulers (MK-AUTO)...", c.cleanSchedulers},
 		{"Xoá IP Routes (custom)...", c.cleanRoutes},
+		{"Xoá Routing Rules (PBR)...", c.cleanRoutingRules},
 		{"Xoá Routing Tables...", c.cleanRoutingTables},
 		{"Xoá IPSec configuration...", c.cleanIPSec},
 		{"Xoá Simple Queues (MK-AUTO)...", c.cleanSimpleQueues},
+		{"Xoá Queue Types (CAKE)...", c.cleanQueueTypes},
 	}
 
 	for _, step := range steps {
@@ -340,6 +342,29 @@ func (c *Cleaner) cleanSchedulers() (int, error) {
 
 func (c *Cleaner) cleanSimpleQueues() (int, error) {
 	return c.client.RemoveByComment("queue/simple", AppComment)
+}
+
+func (c *Cleaner) cleanRoutingRules() (int, error) {
+	return c.client.RemoveByComment("routing/rule", AppComment)
+}
+
+func (c *Cleaner) cleanQueueTypes() (int, error) {
+	types, err := c.client.Get("queue/type")
+	if err != nil {
+		return 0, err
+	}
+	count := 0
+	for _, t := range types {
+		name, _ := t["name"].(string)
+		if name == "cake-rx" || name == "cake-tx" {
+			if id, ok := t[".id"].(string); ok && id != "" {
+				if err := c.client.Remove("queue/type", id); err == nil {
+					count++
+				}
+			}
+		}
+	}
+	return count, nil
 }
 
 

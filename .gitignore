@@ -4,6 +4,7 @@
 *.dll
 *.so
 *.dylib
+*.syso
 *.apk
 *.aab
 *.zip
@@ -29,3 +30,6 @@ desktop.ini
 .claude/
 .agents/
 skills-lock.json
+
+# Local profiles
+profiles.json

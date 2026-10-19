@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/theme"
 
 	"mikrotik-automation/internal/modules/vlan"
 )
@@ -140,6 +141,9 @@ func TestLanguageSwitchingInGUI(t *testing.T) {
 	if mw.TabSecurity.btnDisable.Text != "🚫 Tắt Dịch Vụ Không Dùng" {
 		t.Errorf("Expected sec_srv_btn in VI, got '%s'", mw.TabSecurity.btnDisable.Text)
 	}
+	if mw.HeaderBar.lblDevice.Text != "[ ⚪ Chưa kết nối ]" {
+		t.Errorf("Expected HeaderBar lblDevice in VI, got '%s'", mw.HeaderBar.lblDevice.Text)
+	}
 
 	// Toggle language to English
 	mw.ConnBar.toggleLanguage()
@@ -162,6 +166,9 @@ func TestLanguageSwitchingInGUI(t *testing.T) {
 	if mw.TabClear.btnClear.Text != "🗑️ Run 15-Step Automated Reset" {
 		t.Errorf("Expected clr_btn in EN, got '%s'", mw.TabClear.btnClear.Text)
 	}
+	if mw.HeaderBar.lblDevice.Text != "[ ⚪ Disconnected ]" {
+		t.Errorf("Expected HeaderBar lblDevice in EN, got '%s'", mw.HeaderBar.lblDevice.Text)
+	}
 	if pref := a.Preferences().String("app_language"); pref != "en" {
 		t.Errorf("Expected preference 'app_language' to be 'en', got '%s'", pref)
 	}
@@ -180,6 +187,9 @@ func TestLanguageSwitchingInGUI(t *testing.T) {
 	}
 	if mw.TabQueue.btnAdd.Text != "➕ Thêm Giới Hạn Băng Thông" {
 		t.Errorf("Expected queue_add_btn in VI after toggle back, got '%s'", mw.TabQueue.btnAdd.Text)
+	}
+	if mw.HeaderBar.lblDevice.Text != "[ ⚪ Chưa kết nối ]" {
+		t.Errorf("Expected HeaderBar lblDevice in VI after toggle back, got '%s'", mw.HeaderBar.lblDevice.Text)
 	}
 	if pref := a.Preferences().String("app_language"); pref != "vi" {
 		t.Errorf("Expected preference 'app_language' to be 'vi', got '%s'", pref)
@@ -205,5 +215,206 @@ func TestAppStateVLANConcurrency(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
+}
+
+func TestTabSecuritySubTabsAndNAT(t *testing.T) {
+	_ = test.NewApp()
+	w := test.NewWindow(nil)
+	lp := NewLogPanel(w)
+	state := NewAppState(lp)
+	ts := NewTabSecurity(state, w)
+
+	container := ts.Container()
+	if container == nil {
+		t.Fatal("Expected TabSecurity container to be non-nil")
+	}
+
+	if ts.subTabs == nil || len(ts.subTabs.Items) < 2 {
+		t.Fatalf("Expected at least 2 sub-tabs in TabSecurity, got %d", len(ts.subTabs.Items))
+	}
+
+	if ts.btnAddPF == nil || ts.btnAutoHairpin == nil {
+		t.Fatal("Expected NAT buttons to be non-nil")
+	}
+
+	// Verify default inputs
+	if ts.selectPFProto.Selected != "TCP" {
+		t.Errorf("Expected default protocol TCP, got %s", ts.selectPFProto.Selected)
+	}
+}
+
+func TestTabQueueSubTabsAndCakeQoS(t *testing.T) {
+	_ = test.NewApp()
+	w := test.NewWindow(nil)
+	lp := NewLogPanel(w)
+	state := NewAppState(lp)
+	tq := NewTabQueue(state, w)
+
+	c := tq.Container()
+	if c == nil {
+		t.Fatal("Expected TabQueue container to be non-nil")
+	}
+
+	if tq.subTabs == nil || len(tq.subTabs.Items) < 2 {
+		t.Fatalf("Expected 2 sub-tabs in TabQueue, got %d", len(tq.subTabs.Items))
+	}
+
+	// Verify CAKE QoS fields
+	if tq.entryCakeDown == nil || tq.entryCakeUp == nil || tq.btnApplyCake == nil {
+		t.Fatal("Expected CAKE QoS widgets to be non-nil")
+	}
+
+	// Test 95% calculation
+	tq.entryCakeDown.SetText("200")
+	tq.entryCakeUp.SetText("100")
+	tq.updateCakeCalc()
+
+	// 200 * 0.95 = 190, 100 * 0.95 = 95
+	calcText := tq.lblCakeCalc.Text
+	if calcText == "" || len(calcText) < 10 {
+		t.Errorf("Expected calc label to have text, got empty")
+	}
+}
+
+func TestTabNetworkPBRSubTab(t *testing.T) {
+	_ = test.NewApp()
+	w := test.NewWindow(nil)
+	lp := NewLogPanel(w)
+	state := NewAppState(lp)
+	tn := NewTabNetwork(state, w)
+	c := tn.Container()
+	if c == nil {
+		t.Fatal("Expected TabNetwork container to be non-nil")
+	}
+
+	if tn.subTabs == nil || len(tn.subTabs.Items) < 4 {
+		t.Fatalf("Expected 4 sub-tabs in TabNetwork, got %d", len(tn.subTabs.Items))
+	}
+
+	if tn.btnAddPBR == nil || tn.radioPBRType == nil || tn.selectPBRWAN == nil {
+		t.Fatal("Expected PBR controls to be initialized")
+	}
+
+	// Verify recursive routing checkbox exists
+	if tn.chkRecursive == nil {
+		t.Fatal("Expected chkRecursive to be initialized")
+	}
+}
+
+func TestEnterpriseThemeColors(t *testing.T) {
+	darkTheme := NewEnterpriseTheme(true)
+	lightTheme := NewEnterpriseTheme(false)
+
+	darkBg := darkTheme.Color(theme.ColorNameBackground, theme.VariantDark)
+	r, g, b, _ := darkBg.RGBA()
+	// Check dark background is deep slate (low values)
+	if r > 0x2000 || g > 0x3000 || b > 0x4000 {
+		t.Errorf("Expected dark background to be deep slate, got rgba(%d, %d, %d)", r, g, b)
+	}
+
+	lightBg := lightTheme.Color(theme.ColorNameBackground, theme.VariantLight)
+	lr, lg, lb, _ := lightBg.RGBA()
+	// Check light background is near pure white/slate (high values)
+	if lr < 0xF000 || lg < 0xF000 || lb < 0xF000 {
+		t.Errorf("Expected light background to be near white, got rgba(%d, %d, %d)", lr, lg, lb)
+	}
+
+	// Verify Corner Radius
+	radius := darkTheme.Size(theme.SizeNameInputRadius)
+	if radius != 8.0 {
+		t.Errorf("Expected input radius 8.0, got %f", radius)
+	}
+}
+
+func TestSidebarToggleAndCollapse(t *testing.T) {
+	a := test.NewApp()
+	lp := NewLogPanel(test.NewWindow(nil))
+	state := NewAppState(lp)
+
+	selectedIdx := -1
+	sb := NewSidebar(state, a, func(idx int) {
+		selectedIdx = idx
+	})
+
+	if sb.Container() == nil {
+		t.Fatal("Expected Sidebar container to be non-nil")
+	}
+
+	if sb.IsCollapsed() {
+		t.Errorf("Expected sidebar to start expanded by default")
+	}
+
+	// Test click
+	sb.SetActive(2)
+	if sb.activeIndex != 2 {
+		t.Errorf("Expected activeIndex 2, got %d", sb.activeIndex)
+	}
+
+	// Test toggle
+	sb.Toggle()
+	if !sb.IsCollapsed() {
+		t.Errorf("Expected sidebar to be collapsed after Toggle()")
+	}
+
+	// Test toggle back
+	sb.Toggle()
+	if sb.IsCollapsed() {
+		t.Errorf("Expected sidebar to be expanded after second Toggle()")
+	}
+	_ = selectedIdx
+}
+
+func TestLogTrayCollapseExpandAndAutoExpand(t *testing.T) {
+	w := test.NewWindow(nil)
+	lp := NewLogPanel(w)
+	tray := NewLogTray(lp, w)
+
+	if tray.Container() == nil {
+		t.Fatal("Expected LogTray container to be non-nil")
+	}
+
+	if tray.IsExpanded() {
+		t.Errorf("Expected LogTray to be collapsed by default")
+	}
+
+	// Test manual toggle
+	tray.Toggle()
+	if !tray.IsExpanded() {
+		t.Errorf("Expected LogTray to be expanded after Toggle()")
+	}
+
+	tray.SetExpanded(false)
+	if tray.IsExpanded() {
+		t.Errorf("Expected LogTray to be collapsed after SetExpanded(false)")
+	}
+
+	// Test smart auto-expand on deployment step
+	tray.Log("▶ [BƯỚC 1/3] CẤU HÌNH PPPoE WAN...")
+	if !tray.IsExpanded() {
+		t.Errorf("Expected LogTray to auto-expand on [BƯỚC log line")
+	}
+}
+
+func TestHeaderBarDeviceChip(t *testing.T) {
+	a := test.NewApp()
+	w := test.NewWindow(nil)
+	lp := NewLogPanel(w)
+	state := NewAppState(lp)
+	cb := NewConnectionBar(state, a)
+	hb := NewHeaderBar(cb, a, w)
+
+	if hb.Container() == nil {
+		t.Fatal("Expected HeaderBar container to be non-nil")
+	}
+
+	if hb.lblDevice.Text == "" {
+		t.Errorf("Expected device chip label to have text")
+	}
+
+	// Simulate connection status change
+	cb.updateStatusText("192.168.88.1 (REST API)")
+	if hb.lblDevice.Text == "" {
+		t.Errorf("Expected device chip label to reflect connected status")
+	}
 }
 

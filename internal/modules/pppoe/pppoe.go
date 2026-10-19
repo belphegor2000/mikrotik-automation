@@ -65,6 +65,10 @@ func (p *Configurator) ConfigureSingle(user, password string) error {
 }
 
 func (p *Configurator) ConfigureDualPCC(user1, pass1, user2, pass2, bridgeIface string) error {
+	return p.ConfigureDualPCCEx(user1, pass1, user2, pass2, bridgeIface, false)
+}
+
+func (p *Configurator) ConfigureDualPCCEx(user1, pass1, user2, pass2, bridgeIface string, enableRecursive bool) error {
 	if bridgeIface == "" {
 		bridgeIface = "bridgeVLAN"
 	}
@@ -112,37 +116,37 @@ func (p *Configurator) ConfigureDualPCC(user1, pass1, user2, pass2, bridgeIface 
 	mangleRules := []map[string]interface{}{
 		// Input mark connections
 		{
-			"chain":             "input",
-			"in-interface":      PPPoEWAN1,
-			"action":            "mark-connection",
+			"chain":               "input",
+			"in-interface":        PPPoEWAN1,
+			"action":              "mark-connection",
 			"new-connection-mark": ConnMarkWAN1,
-			"passthrough":       "yes",
-			"comment":           AppComment,
+			"passthrough":         "yes",
+			"comment":             AppComment,
 		},
 		{
-			"chain":             "input",
-			"in-interface":      PPPoEWAN2,
-			"action":            "mark-connection",
+			"chain":               "input",
+			"in-interface":        PPPoEWAN2,
+			"action":              "mark-connection",
 			"new-connection-mark": ConnMarkWAN2,
-			"passthrough":       "yes",
-			"comment":           AppComment,
+			"passthrough":         "yes",
+			"comment":             AppComment,
 		},
 		// Output mark routing
 		{
-			"chain":           "output",
-			"connection-mark": ConnMarkWAN1,
-			"action":          "mark-routing",
+			"chain":            "output",
+			"connection-mark":  ConnMarkWAN1,
+			"action":           "mark-routing",
 			"new-routing-mark": RouteMarkWAN1,
-			"passthrough":     "no",
-			"comment":         AppComment,
+			"passthrough":      "no",
+			"comment":          AppComment,
 		},
 		{
-			"chain":           "output",
-			"connection-mark": ConnMarkWAN2,
-			"action":          "mark-routing",
+			"chain":            "output",
+			"connection-mark":  ConnMarkWAN2,
+			"action":           "mark-routing",
 			"new-routing-mark": RouteMarkWAN2,
-			"passthrough":     "no",
-			"comment":         AppComment,
+			"passthrough":      "no",
+			"comment":          AppComment,
 		},
 		// Accept inter-LAN traffic between subnets in Lan-Address before PCC
 		{
@@ -154,43 +158,43 @@ func (p *Configurator) ConfigureDualPCC(user1, pass1, user2, pass2, bridgeIface 
 		},
 		// Prerouting PCC rules
 		{
-			"chain":             "prerouting",
-			"in-interface":      bridgeIface,
-			"dst-address-type":  "!local",
+			"chain":                     "prerouting",
+			"in-interface":              bridgeIface,
+			"dst-address-type":          "!local",
 			"per-connection-classifier": "both-addresses-and-ports:2/0",
-			"action":            "mark-connection",
-			"new-connection-mark": ConnMarkWAN1,
-			"passthrough":       "yes",
-			"comment":           AppComment,
+			"action":                    "mark-connection",
+			"new-connection-mark":       ConnMarkWAN1,
+			"passthrough":               "yes",
+			"comment":                   AppComment,
 		},
 		{
-			"chain":             "prerouting",
-			"in-interface":      bridgeIface,
-			"dst-address-type":  "!local",
+			"chain":                     "prerouting",
+			"in-interface":              bridgeIface,
+			"dst-address-type":          "!local",
 			"per-connection-classifier": "both-addresses-and-ports:2/1",
-			"action":            "mark-connection",
-			"new-connection-mark": ConnMarkWAN2,
-			"passthrough":       "yes",
-			"comment":           AppComment,
+			"action":                    "mark-connection",
+			"new-connection-mark":       ConnMarkWAN2,
+			"passthrough":               "yes",
+			"comment":                   AppComment,
 		},
 		// Prerouting mark routing
 		{
-			"chain":           "prerouting",
-			"in-interface":    bridgeIface,
-			"connection-mark": ConnMarkWAN1,
-			"action":          "mark-routing",
+			"chain":            "prerouting",
+			"in-interface":     bridgeIface,
+			"connection-mark":  ConnMarkWAN1,
+			"action":           "mark-routing",
 			"new-routing-mark": RouteMarkWAN1,
-			"passthrough":     "no",
-			"comment":         AppComment,
+			"passthrough":      "no",
+			"comment":          AppComment,
 		},
 		{
-			"chain":           "prerouting",
-			"in-interface":    bridgeIface,
-			"connection-mark": ConnMarkWAN2,
-			"action":          "mark-routing",
+			"chain":            "prerouting",
+			"in-interface":     bridgeIface,
+			"connection-mark":  ConnMarkWAN2,
+			"action":           "mark-routing",
 			"new-routing-mark": RouteMarkWAN2,
-			"passthrough":     "no",
-			"comment":         AppComment,
+			"passthrough":      "no",
+			"comment":          AppComment,
 		},
 	}
 
@@ -199,37 +203,115 @@ func (p *Configurator) ConfigureDualPCC(user1, pass1, user2, pass2, bridgeIface 
 	}
 	p.log(fmt.Sprintf("    ✓ Đã tạo %d Mangle rules.", len(mangleRules)))
 
-	p.log("  ▶ Tạo Default Routes...")
-	routes := []map[string]interface{}{
-		{
-			"dst-address":   "0.0.0.0/0",
-			"gateway":       PPPoEWAN1,
-			"routing-table": RTWAN1,
-			"distance":      1,
-			"comment":       AppComment,
-		},
-		{
-			"dst-address":   "0.0.0.0/0",
-			"gateway":       PPPoEWAN2,
-			"routing-table": RTWAN2,
-			"distance":      1,
-			"comment":       AppComment,
-		},
-		{
-			"dst-address":   "0.0.0.0/0",
-			"gateway":       PPPoEWAN1,
-			"routing-table": "main",
-			"distance":      1,
-			"comment":       AppComment,
-		},
-		{
-			"dst-address":   "0.0.0.0/0",
-			"gateway":       PPPoEWAN2,
-			"routing-table": "main",
-			"distance":      2,
-			"comment":       AppComment,
-		},
+	var routes []map[string]interface{}
+	if enableRecursive {
+		p.log("  ▶ Thiết lập Recursive Failover Routes (Kiểm tra ping qua 8.8.8.8 & 1.1.1.1)...")
+		routes = []map[string]interface{}{
+			// Virtual hop routes
+			{
+				"dst-address": "8.8.8.8/32",
+				"gateway":     PPPoEWAN1,
+				"scope":       10,
+				"comment":     AppComment + " Recursive WAN1 Host",
+			},
+			{
+				"dst-address": "1.1.1.1/32",
+				"gateway":     PPPoEWAN2,
+				"scope":       10,
+				"comment":     AppComment + " Recursive WAN2 Host",
+			},
+			// Default routes in main table
+			{
+				"dst-address":   "0.0.0.0/0",
+				"gateway":       "8.8.8.8",
+				"check-gateway": "ping",
+				"distance":      1,
+				"target-scope":  11,
+				"routing-table": "main",
+				"comment":       AppComment + " Recursive Default WAN1",
+			},
+			{
+				"dst-address":   "0.0.0.0/0",
+				"gateway":       "1.1.1.1",
+				"check-gateway": "ping",
+				"distance":      2,
+				"target-scope":  11,
+				"routing-table": "main",
+				"comment":       AppComment + " Recursive Default WAN2",
+			},
+			// Default & failover routes in to_wan1 table
+			{
+				"dst-address":   "0.0.0.0/0",
+				"gateway":       "8.8.8.8",
+				"check-gateway": "ping",
+				"distance":      1,
+				"target-scope":  11,
+				"routing-table": RTWAN1,
+				"comment":       AppComment,
+			},
+			{
+				"dst-address":   "0.0.0.0/0",
+				"gateway":       "1.1.1.1",
+				"check-gateway": "ping",
+				"distance":      2,
+				"target-scope":  11,
+				"routing-table": RTWAN1,
+				"comment":       AppComment + " Backup to_wan1 via WAN2",
+			},
+			// Default & failover routes in to_wan2 table
+			{
+				"dst-address":   "0.0.0.0/0",
+				"gateway":       "1.1.1.1",
+				"check-gateway": "ping",
+				"distance":      1,
+				"target-scope":  11,
+				"routing-table": RTWAN2,
+				"comment":       AppComment,
+			},
+			{
+				"dst-address":   "0.0.0.0/0",
+				"gateway":       "8.8.8.8",
+				"check-gateway": "ping",
+				"distance":      2,
+				"target-scope":  11,
+				"routing-table": RTWAN2,
+				"comment":       AppComment + " Backup to_wan2 via WAN1",
+			},
+		}
+	} else {
+		p.log("  ▶ Tạo Default Routes tiêu chuẩn...")
+		routes = []map[string]interface{}{
+			{
+				"dst-address":   "0.0.0.0/0",
+				"gateway":       PPPoEWAN1,
+				"routing-table": RTWAN1,
+				"distance":      1,
+				"comment":       AppComment,
+			},
+			{
+				"dst-address":   "0.0.0.0/0",
+				"gateway":       PPPoEWAN2,
+				"routing-table": RTWAN2,
+				"distance":      1,
+				"comment":       AppComment,
+			},
+			{
+				"dst-address":   "0.0.0.0/0",
+				"gateway":       PPPoEWAN1,
+				"routing-table": "main",
+				"distance":      1,
+				"comment":       AppComment,
+			},
+			{
+				"dst-address":   "0.0.0.0/0",
+				"gateway":       PPPoEWAN2,
+				"routing-table": "main",
+				"distance":      2,
+				"comment":       AppComment,
+			},
+		}
 	}
+
 	for _, r := range routes {
 		_, _ = p.client.Add("ip/route", r)
 	}
@@ -247,3 +329,4 @@ func (p *Configurator) ConfigureDualPCC(user1, pass1, user2, pass2, bridgeIface 
 	p.log("    ✓ Đã tạo NAT masquerade cho cả 2 đường.")
 	return nil
 }
+

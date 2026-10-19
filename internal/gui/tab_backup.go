@@ -2,6 +2,7 @@ package gui
 
 import (
 	"fmt"
+	"io"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -10,6 +11,8 @@ import (
 
 	"mikrotik-automation/internal/i18n"
 	"mikrotik-automation/internal/modules/backup"
+	"mikrotik-automation/internal/orchestrator"
+	"mikrotik-automation/internal/profile"
 )
 
 type TabBackup struct {
@@ -25,6 +28,9 @@ type TabBackup struct {
 	lblBKNameTitle *widget.Label
 	entryBkName    *widget.Entry
 	btnCreateBK    *widget.Button
+	lblTmplTitle   *widget.Label
+	lblTmplDesc    *widget.Label
+	btnDeployTmpl  *widget.Button
 	lblFilesTitle  *widget.Label
 	btnRefreshList *widget.Button
 	filesList      *widget.List
@@ -60,7 +66,17 @@ func NewTabBackup(state *AppState, w fyne.Window) *TabBackup {
 	})
 	tb.btnCreateBK.Importance = widget.HighImportance
 
-	// 3. Router files list (Desktop 3-column table)
+	// 3. Configuration Template (.json)
+	tb.lblTmplTitle = widget.NewLabelWithStyle(i18n.T("tmpl_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	tb.lblTmplDesc = widget.NewLabel(i18n.T("tmpl_desc"))
+	tb.lblTmplDesc.Wrapping = fyne.TextWrapWord
+
+	tb.btnDeployTmpl = widget.NewButton(i18n.T("tmpl_deploy_btn"), func() {
+		tb.deployTemplate()
+	})
+	tb.btnDeployTmpl.Importance = widget.HighImportance
+
+	// 4. Router files list (Desktop 3-column table)
 	tb.lblFilesTitle = widget.NewLabelWithStyle(i18n.T("bk_list_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	tb.filesData = make([]backup.BackupItem, 0)
 	tb.filesList = widget.NewList(
@@ -114,6 +130,12 @@ func (tb *TabBackup) BuildDesktopContainer() fyne.CanvasObject {
 		tb.btnCreateBK,
 	)
 
+	cardTmpl := container.NewVBox(
+		tb.lblTmplTitle,
+		tb.lblTmplDesc,
+		tb.btnDeployTmpl,
+	)
+
 	cardFiles := container.NewBorder(
 		container.NewBorder(nil, nil, tb.lblFilesTitle, tb.btnRefreshList),
 		nil, nil, nil,
@@ -123,7 +145,7 @@ func (tb *TabBackup) BuildDesktopContainer() fyne.CanvasObject {
 	return container.NewBorder(
 		container.NewVBox(
 			tb.lblMainTitle,
-			container.NewGridWithColumns(2, cardRSC, cardBK),
+			container.NewGridWithColumns(3, cardRSC, cardBK, cardTmpl),
 			widget.NewSeparator(),
 		),
 		nil, nil, nil,
@@ -153,6 +175,15 @@ func (tb *TabBackup) UpdateLanguage() {
 	}
 	if tb.btnCreateBK != nil {
 		tb.btnCreateBK.SetText(i18n.T("bk_create_btn"))
+	}
+	if tb.lblTmplTitle != nil {
+		tb.lblTmplTitle.SetText(i18n.T("tmpl_title"))
+	}
+	if tb.lblTmplDesc != nil {
+		tb.lblTmplDesc.SetText(i18n.T("tmpl_desc"))
+	}
+	if tb.btnDeployTmpl != nil {
+		tb.btnDeployTmpl.SetText(i18n.T("tmpl_deploy_btn"))
 	}
 	if tb.lblFilesTitle != nil {
 		tb.lblFilesTitle.SetText(i18n.T("bk_list_title"))
@@ -203,6 +234,51 @@ func (tb *TabBackup) createBackup() {
 		_, _ = svc.CreateSystemBackup(name)
 		tb.refreshFiles()
 	}()
+}
+
+func (tb *TabBackup) deployTemplate() {
+	c := tb.state.GetClient()
+	if !c.IsConnected() {
+		tb.state.Log("✗ Chưa kết nối đến router!")
+		return
+	}
+
+	dialog.ShowFileOpen(func(uc fyne.URIReadCloser, err error) {
+		if err != nil || uc == nil {
+			return
+		}
+		defer uc.Close()
+		data, err := io.ReadAll(uc)
+		if err != nil {
+			tb.state.Log(fmt.Sprintf("❌ Lỗi đọc file template: %v", err))
+			return
+		}
+
+		tmpl, err := profile.ParseTemplateFromJSON(data)
+		if err != nil {
+			tb.state.Log(fmt.Sprintf("❌ Template không hợp lệ: %v", err))
+			return
+		}
+
+		msg := fmt.Sprintf("Bạn có chắc chắn muốn nạp và triển khai cấu hình từ mẫu '%s' (Phiên bản: %s)?\nCấu hình PPPoE, Bridge, VLAN, PBR và CAKE QoS sẽ được tự động cài đặt.", tmpl.Name, tmpl.Version)
+		dialog.ShowConfirm("Xác Nhận Triển Khai Template", msg, func(ok bool) {
+			if !ok {
+				return
+			}
+			tb.btnDeployTmpl.Disable()
+			go func() {
+				defer fyne.Do(func() { tb.btnDeployTmpl.Enable() })
+				deployer := orchestrator.NewOrchestrator(c, tb.state.Log)
+				if err := deployer.DeployFromTemplate(*tmpl); err != nil {
+					tb.state.Log(fmt.Sprintf("❌ Lỗi triển khai template: %v", err))
+				} else {
+					fyne.Do(func() {
+						dialog.ShowInformation("Thành công", "Đã triển khai hoàn tất toàn bộ hệ thống từ Template!", tb.window)
+					})
+				}
+			}()
+		}, tb.window)
+	}, tb.window)
 }
 
 func (tb *TabBackup) refreshFiles() {

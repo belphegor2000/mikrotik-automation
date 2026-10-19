@@ -2,22 +2,94 @@ package gui
 
 import (
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 
 	"mikrotik-automation/internal/i18n"
 	"mikrotik-automation/internal/modules/bridge"
+	"mikrotik-automation/internal/modules/nat"
 	"mikrotik-automation/internal/modules/pppoe"
+	"mikrotik-automation/internal/modules/routing"
 	"mikrotik-automation/internal/modules/vlan"
 	"mikrotik-automation/internal/orchestrator"
+	"mikrotik-automation/internal/profile"
 )
+
+type pbrRowLayout struct{}
+
+func (l *pbrRowLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+	if len(objects) < 5 {
+		return
+	}
+	pad := float32(8)
+	wType := float32(95)
+	wWAN := float32(90)
+	wAct := float32(70)
+
+	fixed := wType + wWAN + wAct + 4*pad
+	avail := size.Width - fixed
+	if avail < 360 {
+		avail = 360
+	}
+	wName := avail * 0.40
+	wTarget := avail * 0.60
+
+	h := size.Height
+	x := float32(0)
+
+	// 0: Name
+	objects[0].Move(fyne.NewPos(x, 0))
+	objects[0].Resize(fyne.NewSize(wName, h))
+	x += wName + pad
+
+	// 1: Type
+	objects[1].Move(fyne.NewPos(x, 0))
+	objects[1].Resize(fyne.NewSize(wType, h))
+	x += wType + pad
+
+	// 2: Target / Match
+	objects[2].Move(fyne.NewPos(x, 0))
+	objects[2].Resize(fyne.NewSize(wTarget, h))
+	x += wTarget + pad
+
+	// 3: WAN
+	objects[3].Move(fyne.NewPos(x, 0))
+	objects[3].Resize(fyne.NewSize(wWAN, h))
+	x += wWAN + pad
+
+	// 4: Action (Delete)
+	objects[4].Move(fyne.NewPos(x, 0))
+	objects[4].Resize(fyne.NewSize(wAct, h))
+}
+
+func (l *pbrRowLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
+	wName := float32(140)
+	wType := float32(95)
+	wTarget := float32(220)
+	wWAN := float32(90)
+	wAct := float32(70)
+	pad := float32(8)
+
+	minW := wName + wType + wTarget + wWAN + wAct + 4*pad
+	maxH := float32(36)
+	for _, o := range objects {
+		if o != nil && o.MinSize().Height > maxH {
+			maxH = o.MinSize().Height
+		}
+	}
+	return fyne.NewSize(minW, maxH)
+}
 
 // vlanRowLayout arranges a single row of VLAN inputs with proportional column widths.
 type vlanRowLayout struct{}
+
 
 func (l *vlanRowLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	if len(objects) < 5 {
@@ -104,6 +176,7 @@ type TabNetwork struct {
 	lblWAN2User    *widget.Label
 	lblWAN2Pass    *widget.Label
 	radioWAN       *widget.RadioGroup
+	chkRecursive   *widget.Check
 	entryUser1     *widget.Entry
 	entryPass1     *widget.Entry
 	entryUser2     *widget.Entry
@@ -133,6 +206,26 @@ type TabNetwork struct {
 	btnClearVLAN     *widget.Button
 	viewVLAN         *fyne.Container
 
+	// Sub-tab 4: PBR (Policy Based Routing)
+	lblPBRTitle    *widget.Label
+	lblPBRDesc     *widget.Label
+	entryPBRName   *widget.Entry
+	radioPBRType   *widget.RadioGroup
+	selectPBRVLAN  *widget.Select
+	entryPBRTarget *widget.Entry
+	selectPBRWAN   *widget.Select
+	btnAddPBR      *widget.Button
+	lblPBRList     *widget.Label
+	btnRefreshPBR  *widget.Button
+	pbrHeaders     []*widget.Label
+	pbrList        *widget.List
+	pbrData        []routing.PBRRule
+	viewPBR        *fyne.Container
+
+	// Templates
+	btnExportTmpl *widget.Button
+	btnDeployTmpl *widget.Button
+
 	// Global controls
 	subTabs      *container.AppTabs
 	btnApplyStep *widget.Button
@@ -144,7 +237,11 @@ type TabNetwork struct {
 }
 
 func NewTabNetwork(state *AppState, w fyne.Window) *TabNetwork {
-	tn := &TabNetwork{state: state, window: w}
+	tn := &TabNetwork{
+		state:   state,
+		window:  w,
+		pbrData: make([]routing.PBRRule, 0),
+	}
 
 	tn.lblMainTitle = widget.NewLabelWithStyle(i18n.T("net_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
@@ -164,6 +261,10 @@ func NewTabNetwork(state *AppState, w fyne.Window) *TabNetwork {
 	tn.entryUser2.Disable()
 	tn.entryPass2.Disable()
 
+	tn.chkRecursive = widget.NewCheck(i18n.T("net_pppoe_recursive"), nil)
+	tn.chkRecursive.SetChecked(true)
+	tn.chkRecursive.Hide()
+
 	tn.radioWAN = widget.NewRadioGroup([]string{i18n.T("net_pppoe_1wan"), i18n.T("net_pppoe_2wan")}, func(val string) {
 		if tn.entryUser2 == nil || tn.entryPass2 == nil {
 			return
@@ -172,12 +273,19 @@ func NewTabNetwork(state *AppState, w fyne.Window) *TabNetwork {
 		if isDual {
 			tn.entryUser2.Enable()
 			tn.entryPass2.Enable()
+			if tn.chkRecursive != nil {
+				tn.chkRecursive.Show()
+			}
 		} else {
 			tn.entryUser2.Disable()
 			tn.entryPass2.Disable()
+			if tn.chkRecursive != nil {
+				tn.chkRecursive.Hide()
+			}
 		}
 	})
 	tn.radioWAN.SetSelected(i18n.T("net_pppoe_1wan"))
+
 
 	tn.lblWAN1Title = widget.NewLabelWithStyle(i18n.T("net_pppoe_wan1"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	tn.lblWAN1User = widget.NewLabel(i18n.T("net_pppoe_user"))
@@ -307,8 +415,23 @@ func NewTabNetwork(state *AppState, w fyne.Window) *TabNetwork {
 	})
 	tn.btnDeployAll.Importance = widget.HighImportance
 
+	tn.btnExportTmpl = widget.NewButton(i18n.T("tmpl_export_btn"), func() {
+		tn.exportTemplate()
+	})
+	tn.btnDeployTmpl = widget.NewButton(i18n.T("tmpl_deploy_btn"), func() {
+		tn.deployTemplate()
+	})
+	tn.btnDeployTmpl.Importance = widget.WarningImportance
+
+	tn.initPBRSubView()
+
+	tn.state.OnConnect = append(tn.state.OnConnect, func() {
+		tn.RefreshPBR()
+	})
+
 	return tn
 }
+
 
 func (tn *TabNetwork) createVLANRow(defaultID string, defaultName string, defaultCIDR string) *vlanInputRow {
 	row := &vlanInputRow{
@@ -525,6 +648,7 @@ func (tn *TabNetwork) BuildDesktopContainer() fyne.CanvasObject {
 		tn.lblPPPoETitle,
 		tn.radioWAN,
 		container.NewGridWithColumns(2, tn.wan1Box, tn.wan2Box),
+		tn.chkRecursive,
 		tn.lblPPPoEHint,
 	)
 
@@ -532,9 +656,17 @@ func (tn *TabNetwork) BuildDesktopContainer() fyne.CanvasObject {
 		container.NewTabItem(i18n.T("net_sub_pppoe"), viewPPPoE),
 		container.NewTabItem(i18n.T("net_sub_bridge"), tn.viewBridge),
 		container.NewTabItem(i18n.T("net_sub_vlan"), tn.viewVLAN),
+		container.NewTabItem(i18n.T("net_sub_pbr"), tn.viewPBR),
 	)
 
-	bottomBar := container.NewBorder(nil, nil, tn.btnApplyStep, tn.btnDeployAll)
+	tn.subTabs.OnSelected = func(ti *container.TabItem) {
+		if ti.Text == i18n.T("net_sub_pbr") {
+			tn.refreshVLANOptionsInPBR()
+		}
+	}
+
+	leftActions := container.NewHBox(tn.btnApplyStep, tn.btnExportTmpl, tn.btnDeployTmpl)
+	bottomBar := container.NewBorder(nil, nil, leftActions, tn.btnDeployAll)
 
 	return container.NewBorder(
 		tn.lblMainTitle,
@@ -632,13 +764,50 @@ func (tn *TabNetwork) UpdateLanguage() {
 	if tn.btnDeployAll != nil {
 		tn.btnDeployAll.SetText(i18n.T("net_btn_deploy_all"))
 	}
-	if tn.subTabs != nil && len(tn.subTabs.Items) >= 3 {
+	if tn.chkRecursive != nil {
+		tn.chkRecursive.SetText(i18n.T("net_pppoe_recursive"))
+	}
+	if tn.btnExportTmpl != nil {
+		tn.btnExportTmpl.SetText(i18n.T("tmpl_export_btn"))
+	}
+	if tn.btnDeployTmpl != nil {
+		tn.btnDeployTmpl.SetText(i18n.T("tmpl_deploy_btn"))
+	}
+	if tn.subTabs != nil && len(tn.subTabs.Items) >= 4 {
 		tn.subTabs.Items[0].Text = i18n.T("net_sub_pppoe")
 		tn.subTabs.Items[1].Text = i18n.T("net_sub_bridge")
 		tn.subTabs.Items[2].Text = i18n.T("net_sub_vlan")
+		tn.subTabs.Items[3].Text = i18n.T("net_sub_pbr")
 		tn.subTabs.Refresh()
 	}
+	if tn.lblPBRTitle != nil {
+		tn.lblPBRTitle.SetText(i18n.T("pbr_title"))
+	}
+	if tn.lblPBRDesc != nil {
+		tn.lblPBRDesc.SetText(i18n.T("pbr_desc"))
+	}
+	if tn.radioPBRType != nil {
+		tn.radioPBRType.Options = []string{i18n.T("pbr_type_vlan"), i18n.T("pbr_type_domain")}
+		tn.radioPBRType.Refresh()
+	}
+	if tn.btnAddPBR != nil {
+		tn.btnAddPBR.SetText(i18n.T("pbr_btn_add"))
+	}
+	if tn.lblPBRList != nil {
+		tn.lblPBRList.SetText(i18n.T("pbr_list_title"))
+	}
+	if tn.btnRefreshPBR != nil {
+		tn.btnRefreshPBR.SetText(i18n.T("nat_refresh_btn"))
+	}
+	if len(tn.pbrHeaders) >= 5 {
+		tn.pbrHeaders[0].SetText(i18n.T("pbr_col_name"))
+		tn.pbrHeaders[1].SetText(i18n.T("pbr_col_type"))
+		tn.pbrHeaders[2].SetText(i18n.T("pbr_col_match"))
+		tn.pbrHeaders[3].SetText(i18n.T("pbr_col_wan"))
+		tn.pbrHeaders[4].SetText(i18n.T("nat_col_action"))
+	}
 }
+
 
 func (tn *TabNetwork) previewBridgePorts() {
 	c := tn.state.GetClient()
@@ -693,7 +862,7 @@ func (tn *TabNetwork) applyCurrentStep() {
 			if wanCount == 1 {
 				_ = cfg.ConfigureSingle(tn.entryUser1.Text, tn.entryPass1.Text)
 			} else {
-				_ = cfg.ConfigureDualPCC(tn.entryUser1.Text, tn.entryPass1.Text, tn.entryUser2.Text, tn.entryPass2.Text, "bridgeVLAN")
+				_ = cfg.ConfigureDualPCCEx(tn.entryUser1.Text, tn.entryPass1.Text, tn.entryUser2.Text, tn.entryPass2.Text, "bridgeVLAN", tn.chkRecursive.Checked)
 			}
 		case 1: // Bridge LAN
 			wanCount := 1
@@ -745,6 +914,8 @@ func (tn *TabNetwork) applyCurrentStep() {
 			}
 			cfg := vlan.NewConfigurator(c, tn.state.Log)
 			_ = cfg.Configure(vlans)
+		case 3: // Định tuyến PBR
+			tn.RefreshPBR()
 		}
 	}()
 }
@@ -800,15 +971,16 @@ func (tn *TabNetwork) deployAll() {
 		})
 
 		params := orchestrator.NetworkDeployParams{
-			WANCount:   wanCount,
-			User1:      tn.entryUser1.Text,
-			Pass1:      tn.entryPass1.Text,
-			User2:      tn.entryUser2.Text,
-			Pass2:      tn.entryPass2.Text,
-			BridgeIP:   bridgeIP,
-			EnableDHCP: tn.chkBridgeDHCP.Checked,
-			DNSServers: strings.TrimSpace(tn.entryBridgeDNS.Text),
-			VLANs:      vlans,
+			WANCount:        wanCount,
+			User1:           tn.entryUser1.Text,
+			Pass1:           tn.entryPass1.Text,
+			User2:           tn.entryUser2.Text,
+			Pass2:           tn.entryPass2.Text,
+			EnableRecursive: tn.chkRecursive.Checked,
+			BridgeIP:        bridgeIP,
+			EnableDHCP:      tn.chkBridgeDHCP.Checked,
+			DNSServers:      strings.TrimSpace(tn.entryBridgeDNS.Text),
+			VLANs:           vlans,
 		}
 		orch := orchestrator.NewOrchestrator(c, tn.state.Log)
 		_ = orch.DeployNetwork(params)
@@ -823,3 +995,382 @@ func (tn *TabNetwork) deployAll() {
 		}
 	}()
 }
+
+func (tn *TabNetwork) initPBRSubView() {
+	tn.lblPBRTitle = widget.NewLabelWithStyle(i18n.T("pbr_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	tn.lblPBRDesc = widget.NewLabel(i18n.T("pbr_desc"))
+	tn.lblPBRDesc.Wrapping = fyne.TextWrapWord
+
+	tn.entryPBRName = widget.NewEntry()
+	tn.entryPBRName.SetPlaceHolder("vd: VLAN Kế toán -> WAN1")
+
+	tn.selectPBRVLAN = widget.NewSelect([]string{"[Chọn VLAN]"}, nil)
+	tn.entryPBRTarget = widget.NewEntry()
+	tn.entryPBRTarget.SetPlaceHolder("vd: netflix.com, vietcombank.com.vn, 103.20.0.0/24")
+
+	vlanContainer := container.NewBorder(nil, nil, widget.NewLabel(i18n.T("pbr_vlan_select")), nil, tn.selectPBRVLAN)
+	domainContainer := container.NewBorder(nil, nil, widget.NewLabel(i18n.T("pbr_target_label")), nil, tn.entryPBRTarget)
+	domainContainer.Hide()
+
+	tn.radioPBRType = widget.NewRadioGroup([]string{i18n.T("pbr_type_vlan"), i18n.T("pbr_type_domain")}, func(sel string) {
+		if sel == i18n.T("pbr_type_vlan") {
+			vlanContainer.Show()
+			domainContainer.Hide()
+		} else {
+			vlanContainer.Hide()
+			domainContainer.Show()
+		}
+	})
+	tn.radioPBRType.SetSelected(i18n.T("pbr_type_vlan"))
+
+	tn.selectPBRWAN = widget.NewSelect([]string{"WAN 1 (to_wan1)", "WAN 2 (to_wan2)"}, nil)
+	tn.selectPBRWAN.SetSelected("WAN 1 (to_wan1)")
+
+	tn.btnAddPBR = widget.NewButton(i18n.T("pbr_btn_add"), func() {
+		tn.addPBRRule()
+	})
+	tn.btnAddPBR.Importance = widget.HighImportance
+
+	tn.lblPBRList = widget.NewLabelWithStyle(i18n.T("pbr_list_title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	tn.btnRefreshPBR = widget.NewButton(i18n.T("nat_refresh_btn"), func() {
+		tn.RefreshPBR()
+	})
+
+	tn.pbrHeaders = []*widget.Label{
+		widget.NewLabelWithStyle(i18n.T("pbr_col_name"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle(i18n.T("pbr_col_type"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle(i18n.T("pbr_col_match"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle(i18n.T("pbr_col_wan"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle(i18n.T("nat_col_action"), fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+	}
+
+	tn.pbrData = make([]routing.PBRRule, 0)
+	tn.pbrList = widget.NewList(
+		func() int {
+			return len(tn.pbrData)
+		},
+		func() fyne.CanvasObject {
+			btnDel := widget.NewButton(i18n.T("nat_delete_btn"), nil)
+			btnDel.Importance = widget.DangerImportance
+			return container.New(&pbrRowLayout{},
+				widget.NewLabel(""),
+				widget.NewLabel(""),
+				widget.NewLabel(""),
+				widget.NewLabel(""),
+				btnDel,
+			)
+		},
+		func(id widget.ListItemID, obj fyne.CanvasObject) {
+			if id >= len(tn.pbrData) {
+				return
+			}
+			item := tn.pbrData[id]
+			box := obj.(*fyne.Container)
+			box.Objects[0].(*widget.Label).SetText(item.Name)
+
+			typeStr := "VLAN / Subnet"
+			matchStr := item.Source
+			if item.Type == routing.TypeDomainIP {
+				typeStr = "Domain / IP"
+				matchStr = item.Destination
+			}
+			box.Objects[1].(*widget.Label).SetText(typeStr)
+			box.Objects[2].(*widget.Label).SetText(matchStr)
+			box.Objects[3].(*widget.Label).SetText(item.TargetWAN)
+
+			btnDel := box.Objects[4].(*widget.Button)
+			btnDel.SetText(i18n.T("nat_delete_btn"))
+			btnDel.OnTapped = func() {
+				tn.confirmDeletePBR(item)
+			}
+		},
+	)
+
+	pbrFormCard := container.NewVBox(
+		tn.lblPBRTitle,
+		tn.lblPBRDesc,
+		container.NewGridWithColumns(3,
+			container.NewBorder(nil, nil, widget.NewLabel(i18n.T("pbr_col_name")+":"), nil, tn.entryPBRName),
+			container.NewBorder(nil, nil, widget.NewLabel(i18n.T("pbr_type_label")), nil, tn.radioPBRType),
+			container.NewBorder(nil, nil, widget.NewLabel(i18n.T("pbr_wan_label")), nil, tn.selectPBRWAN),
+		),
+		container.NewVBox(vlanContainer, domainContainer),
+		container.NewPadded(tn.btnAddPBR),
+	)
+
+	listHeader := container.NewBorder(nil, nil, tn.lblPBRList, tn.btnRefreshPBR)
+	columnHeaders := container.New(&pbrRowLayout{},
+		tn.pbrHeaders[0],
+		tn.pbrHeaders[1],
+		tn.pbrHeaders[2],
+		tn.pbrHeaders[3],
+		tn.pbrHeaders[4],
+	)
+
+	pbrTableCard := container.NewBorder(
+		container.NewVBox(listHeader, widget.NewSeparator(), columnHeaders),
+		nil, nil, nil,
+		tn.pbrList,
+	)
+
+	tn.viewPBR = container.NewBorder(
+		container.NewVBox(pbrFormCard, widget.NewSeparator()),
+		nil, nil, nil,
+		pbrTableCard,
+	)
+}
+
+func (tn *TabNetwork) refreshVLANOptionsInPBR() {
+	if tn.selectPBRVLAN == nil {
+		return
+	}
+	var opts []string
+	vlans := tn.state.GetVLANs()
+	for _, v := range vlans {
+		if v.CIDR != "" {
+			opts = append(opts, fmt.Sprintf("VLAN %d: %s (%s)", v.VLANID, v.Name, v.CIDR))
+		}
+	}
+	bIP := strings.TrimSpace(tn.entryBridgeIP.Text)
+	if bIP != "" {
+		if sub, err := nat.DeriveSubnet(bIP); err == nil {
+			opts = append(opts, fmt.Sprintf("Bridge LAN (%s)", sub))
+		}
+	}
+	if len(opts) == 0 {
+		opts = []string{"192.168.10.0/24", "192.168.20.0/24", "192.168.30.0/24"}
+	}
+	tn.selectPBRVLAN.Options = opts
+	if len(opts) > 0 && tn.selectPBRVLAN.Selected == "" {
+		tn.selectPBRVLAN.SetSelected(opts[0])
+	}
+	tn.selectPBRVLAN.Refresh()
+}
+
+func (tn *TabNetwork) addPBRRule() {
+	c := tn.state.GetClient()
+	if !c.IsConnected() {
+		tn.state.Log("✗ Chưa kết nối đến router!")
+		return
+	}
+
+	name := strings.TrimSpace(tn.entryPBRName.Text)
+	ruleType := tn.radioPBRType.Selected
+	targetWAN := "WAN1"
+	if strings.Contains(tn.selectPBRWAN.Selected, "WAN 2") || strings.Contains(tn.selectPBRWAN.Selected, "wan2") {
+		targetWAN = "WAN2"
+	}
+
+	cfg := routing.NewConfigurator(c, tn.state.Log)
+
+	if ruleType == i18n.T("pbr_type_vlan") {
+		selectedVLAN := tn.selectPBRVLAN.Selected
+		subnet := selectedVLAN
+		if idx1 := strings.LastIndex(selectedVLAN, "("); idx1 != -1 {
+			if idx2 := strings.LastIndex(selectedVLAN, ")"); idx2 != -1 && idx2 > idx1 {
+				subnet = selectedVLAN[idx1+1 : idx2]
+			}
+		}
+		if name == "" {
+			name = fmt.Sprintf("%s -> %s", subnet, targetWAN)
+		}
+		tn.btnAddPBR.Disable()
+		go func() {
+			defer fyne.Do(func() { tn.btnAddPBR.Enable() })
+			if err := cfg.AddVLANSubnetRule(name, subnet, targetWAN); err != nil {
+				tn.state.Log(fmt.Sprintf("❌ Lỗi cấu hình PBR: %v", err))
+			} else {
+				fyne.Do(func() {
+					tn.entryPBRName.SetText("")
+					tn.RefreshPBR()
+				})
+			}
+		}()
+	} else {
+		target := strings.TrimSpace(tn.entryPBRTarget.Text)
+		if target == "" {
+			tn.state.Log("⚠ Vui lòng nhập Tên miền hoặc IP dịch vụ cần định tuyến!")
+			return
+		}
+		if name == "" {
+			name = fmt.Sprintf("%s -> %s", target, targetWAN)
+		}
+		tn.btnAddPBR.Disable()
+		go func() {
+			defer fyne.Do(func() { tn.btnAddPBR.Enable() })
+			if err := cfg.AddDomainIPRule(name, target, targetWAN); err != nil {
+				tn.state.Log(fmt.Sprintf("❌ Lỗi cấu hình PBR Domain/IP: %v", err))
+			} else {
+				fyne.Do(func() {
+					tn.entryPBRName.SetText("")
+					tn.entryPBRTarget.SetText("")
+					tn.RefreshPBR()
+				})
+			}
+		}()
+	}
+}
+
+func (tn *TabNetwork) RefreshPBR() {
+	c := tn.state.GetClient()
+	if !c.IsConnected() {
+		return
+	}
+
+	tn.btnRefreshPBR.Disable()
+	go func() {
+		defer fyne.Do(func() { tn.btnRefreshPBR.Enable() })
+		cfg := routing.NewConfigurator(c, tn.state.Log)
+		rules, err := cfg.ListPBRRules()
+		fyne.Do(func() {
+			if err == nil {
+				tn.pbrData = rules
+				tn.pbrList.Refresh()
+				tn.state.Log(fmt.Sprintf("✓ Đã tải %d quy tắc định tuyến chính sách PBR.", len(rules)))
+			}
+		})
+	}()
+}
+
+func (tn *TabNetwork) confirmDeletePBR(rule routing.PBRRule) {
+	c := tn.state.GetClient()
+	if !c.IsConnected() {
+		tn.state.Log("✗ Chưa kết nối đến router!")
+		return
+	}
+
+	msg := fmt.Sprintf("Bạn có chắc chắn muốn xoá quy tắc định tuyến PBR '%s'?", rule.Name)
+	dialog.ShowConfirm("Xác Nhận Xoá PBR", msg, func(ok bool) {
+		if !ok {
+			return
+		}
+		go func() {
+			cfg := routing.NewConfigurator(c, tn.state.Log)
+			if err := cfg.DeletePBRRule(rule); err == nil {
+				tn.RefreshPBR()
+			}
+		}()
+	}, tn.window)
+}
+
+func (tn *TabNetwork) exportTemplate() {
+	wanCount := 1
+	if strings.HasPrefix(tn.radioWAN.Selected, "2") {
+		wanCount = 2
+	}
+	vlans, _ := tn.syncVLANsFromUI()
+	bridgeIP := strings.TrimSpace(tn.entryBridgeIP.Text)
+	if bridgeIP == "" {
+		bridgeIP = "192.168.88.1/24"
+	}
+
+	tmpl := profile.NetworkTemplate{
+		Version:     "1.0",
+		Name:        "template-network",
+		Description: "Mẫu cấu hình xuất từ Mikrotik Automation Tool",
+		CreatedAt:   time.Now(),
+		PPPoE: profile.PPPoETemplate{
+			WANCount:        wanCount,
+			User1:           tn.entryUser1.Text,
+			Pass1:           tn.entryPass1.Text,
+			User2:           tn.entryUser2.Text,
+			Pass2:           tn.entryPass2.Text,
+			EnableRecursive: tn.chkRecursive.Checked,
+		},
+		Bridge: profile.BridgeTemplate{
+			BridgeIP:   bridgeIP,
+			EnableDHCP: tn.chkBridgeDHCP.Checked,
+			DNSServers: strings.TrimSpace(tn.entryBridgeDNS.Text),
+		},
+		VLANs: vlans,
+	}
+
+	for _, p := range tn.pbrData {
+		tmpl.PBRRules = append(tmpl.PBRRules, profile.PBRRuleEntry{
+			Name:        p.Name,
+			Type:        p.Type,
+			Source:      p.Source,
+			Destination: p.Destination,
+			TargetWAN:   p.TargetWAN,
+		})
+	}
+
+	dialog.ShowFileSave(func(uc fyne.URIWriteCloser, err error) {
+		if err != nil || uc == nil {
+			return
+		}
+		defer uc.Close()
+		data, err := profile.ExportTemplateToJSON(tmpl)
+		if err != nil {
+			tn.state.Log(fmt.Sprintf("❌ Lỗi xuất template: %v", err))
+			return
+		}
+		_, _ = uc.Write(data)
+		tn.state.Log(fmt.Sprintf("✓ Đã xuất thành công Template ra file: %s", uc.URI().Path()))
+	}, tn.window)
+}
+
+func (tn *TabNetwork) deployTemplate() {
+	c := tn.state.GetClient()
+	if !c.IsConnected() {
+		tn.state.Log("✗ Chưa kết nối đến router!")
+		return
+	}
+
+	dialog.ShowFileOpen(func(uc fyne.URIReadCloser, err error) {
+		if err != nil || uc == nil {
+			return
+		}
+		defer uc.Close()
+		data, err := io.ReadAll(uc)
+		if err != nil {
+			tn.state.Log(fmt.Sprintf("❌ Lỗi đọc file template: %v", err))
+			return
+		}
+
+		tmpl, err := profile.ParseTemplateFromJSON(data)
+		if err != nil {
+			tn.state.Log(fmt.Sprintf("❌ Template không hợp lệ: %v", err))
+			return
+		}
+
+		// Fill UI fields with template values
+		fyne.Do(func() {
+			if tmpl.PPPoE.WANCount == 2 {
+				tn.radioWAN.SetSelected(i18n.T("net_pppoe_2wan"))
+			} else {
+				tn.radioWAN.SetSelected(i18n.T("net_pppoe_1wan"))
+			}
+			tn.entryUser1.SetText(tmpl.PPPoE.User1)
+			tn.entryPass1.SetText(tmpl.PPPoE.Pass1)
+			tn.entryUser2.SetText(tmpl.PPPoE.User2)
+			tn.entryPass2.SetText(tmpl.PPPoE.Pass2)
+			tn.chkRecursive.SetChecked(tmpl.PPPoE.EnableRecursive)
+			tn.entryBridgeIP.SetText(tmpl.Bridge.BridgeIP)
+			tn.chkBridgeDHCP.SetChecked(tmpl.Bridge.EnableDHCP)
+			tn.entryBridgeDNS.SetText(tmpl.Bridge.DNSServers)
+
+			// Load VLAN rows
+			for i, v := range tmpl.VLANs {
+				if i < len(tn.vlanRows) {
+					tn.vlanRows[i].entryID.SetText(fmt.Sprintf("%d", v.VLANID))
+					tn.vlanRows[i].entryName.SetText(v.Name)
+					tn.vlanRows[i].entryCIDR.SetText(v.CIDR)
+				}
+			}
+			tn.syncVLANsQuietly()
+		})
+
+		tn.btnDeployTmpl.Disable()
+		go func() {
+			defer fyne.Do(func() { tn.btnDeployTmpl.Enable() })
+			orch := orchestrator.NewOrchestrator(c, tn.state.Log)
+			if err := orch.DeployFromTemplate(*tmpl); err != nil {
+				tn.state.Log(fmt.Sprintf("❌ Lỗi triển khai từ template: %v", err))
+			} else {
+				tn.RefreshPBR()
+			}
+		}()
+	}, tn.window)
+}
+

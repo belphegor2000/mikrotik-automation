@@ -6,6 +6,7 @@ import (
 
 type mockQueueClient struct {
 	items        []map[string]interface{}
+	types        []map[string]interface{}
 	added        map[string]interface{}
 	removedID    string
 	removeCalled bool
@@ -19,8 +20,12 @@ func (m *mockQueueClient) Get(path string) ([]map[string]interface{}, error) {
 	if path == "queue/simple" {
 		return m.items, nil
 	}
+	if path == "queue/type" {
+		return m.types, nil
+	}
 	return nil, nil
 }
+
 func (m *mockQueueClient) GetOne(path string) (map[string]interface{}, error) { return nil, nil }
 func (m *mockQueueClient) Add(path string, d map[string]interface{}) (map[string]interface{}, error) {
 	m.added = d
@@ -138,3 +143,58 @@ func TestQueueOperations(t *testing.T) {
 		t.Errorf("Expected remove ID *1, got %s", mock.removedID)
 	}
 }
+
+func TestCakeQoS(t *testing.T) {
+	mock := &mockQueueClient{
+		types: []map[string]interface{}{},
+		items: []map[string]interface{}{},
+	}
+	cfg := NewConfigurator(mock, func(string) {})
+
+	// Test 1: Configure CAKE QoS with 150M down, 150M up
+	err := cfg.ConfigureCakeQoS(150, 150)
+	if err != nil {
+		t.Fatalf("ConfigureCakeQoS failed: %v", err)
+	}
+
+	// 95% of 150M = 142500k
+	expectedMax := "142500k/142500k"
+	if mock.added["name"] != CakeQueueName || mock.added["max-limit"] != expectedMax {
+		t.Errorf("expected queue '%s' with max-limit '%s', got: %+v", CakeQueueName, expectedMax, mock.added)
+	}
+
+	// Test 2: Status check
+	mock.items = append(mock.items, mock.added)
+	active, limit, err := cfg.GetCakeStatus()
+	if err != nil || !active || limit != expectedMax {
+		t.Errorf("GetCakeStatus failed, active: %v, limit: %s", active, limit)
+	}
+
+	// Test 3: Remove
+	mock.items[0][".id"] = "*cake1"
+	err = cfg.RemoveCakeQoS()
+	if err != nil {
+		t.Fatalf("RemoveCakeQoS failed: %v", err)
+	}
+	if !mock.removeCalled || mock.removedID != "*cake1" {
+		t.Errorf("expected remove called for *cake1")
+	}
+
+	// Test 4: Configure Dual WAN CAKE QoS (WAN1 150M/150M, WAN2 100M/100M)
+	mock.items = []map[string]interface{}{}
+	err = cfg.ConfigureCakeQoSDual(150, 150, 100, 100, "pppoe-wan1", "pppoe-wan2")
+	if err != nil {
+		t.Fatalf("ConfigureCakeQoSDual failed: %v", err)
+	}
+
+	// Simulate adding both queues
+	mock.items = []map[string]interface{}{
+		{".id": "*cakeW1", "name": CakeQueueNameWAN1, "max-limit": "142500k/142500k"},
+		{".id": "*cakeW2", "name": CakeQueueNameWAN2, "max-limit": "95000k/95000k"},
+	}
+	activeDual, limitDual, err := cfg.GetCakeStatus()
+	if err != nil || !activeDual || limitDual == "" {
+		t.Errorf("GetCakeStatus Dual failed: active=%v, limit=%s", activeDual, limitDual)
+	}
+}
+

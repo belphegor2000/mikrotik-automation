@@ -67,3 +67,42 @@ func TestConfigureDualPCC(t *testing.T) {
 	}
 }
 
+func TestConfigureDualPCCRecursive(t *testing.T) {
+	mock := &mockClient{}
+	cfg := NewConfigurator(mock, func(string) {})
+	err := cfg.ConfigureDualPCCEx("user1", "pass1", "user2", "pass2", "bridgeVLAN", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found8888 := false
+	found1111 := false
+	foundCheckGateway := false
+
+	for _, d := range mock.addedData {
+		dst, _ := d["dst-address"].(string)
+		gw, _ := d["gateway"].(string)
+		chk, _ := d["check-gateway"].(string)
+
+		if dst == "8.8.8.8/32" && gw == PPPoEWAN1 {
+			found8888 = true
+		}
+		if dst == "1.1.1.1/32" && gw == PPPoEWAN2 {
+			found1111 = true
+		}
+		if dst == "0.0.0.0/0" && (gw == "8.8.8.8" || gw == "1.1.1.1") && chk == "ping" {
+			foundCheckGateway = true
+		}
+	}
+
+	if !found8888 {
+		t.Fatalf("expected virtual hop route to 8.8.8.8/32 via WAN1")
+	}
+	if !found1111 {
+		t.Fatalf("expected virtual hop route to 1.1.1.1/32 via WAN2")
+	}
+	if !foundCheckGateway {
+		t.Fatalf("expected check-gateway=ping recursive default route")
+	}
+}
+

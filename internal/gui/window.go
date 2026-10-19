@@ -14,9 +14,14 @@ type MainWindow struct {
 	Window       fyne.Window
 	State        *AppState
 	ConnBar      *ConnectionBar
+	HeaderBar    *HeaderBar
+	Sidebar      *Sidebar
 	LogPanel     *LogPanel
+	LogTray      *LogTray
+	ContentHost  *fyne.Container
 	Split        *container.Split
 	appTabs      *container.AppTabs
+	tabViews     []fyne.CanvasObject
 	TabDashboard *TabDashboard
 	TabNetwork   *TabNetwork
 	TabQueue     *TabQueue
@@ -37,6 +42,8 @@ func NewMainWindow(a fyne.App, w fyne.Window) *MainWindow {
 	}
 
 	logPanel := NewLogPanel(w)
+	logTray := NewLogTray(logPanel, w)
+
 	state := NewAppState(logPanel)
 	connBar := NewConnectionBar(state, a)
 
@@ -49,17 +56,21 @@ func NewMainWindow(a fyne.App, w fyne.Window) *MainWindow {
 		connBar.ReconnectToHost(newHost, onDone)
 	}
 	tabQueue := NewTabQueue(state, w)
-	tabSec := NewTabSecurity(state)
+	tabSec := NewTabSecurity(state, w)
 	tabIPSec := NewTabIPSec(state)
 	tabBk := NewTabBackup(state, w)
 	tabClr := NewTabClear(state, w)
+
+	headerBar := NewHeaderBar(connBar, a, w)
 
 	mw := &MainWindow{
 		App:          a,
 		Window:       w,
 		State:        state,
 		ConnBar:      connBar,
+		HeaderBar:    headerBar,
 		LogPanel:     logPanel,
+		LogTray:      logTray,
 		TabDashboard: tabDash,
 		TabNetwork:   tabNet,
 		TabQueue:     tabQueue,
@@ -69,56 +80,100 @@ func NewMainWindow(a fyne.App, w fyne.Window) *MainWindow {
 		TabClear:     tabClr,
 	}
 
+	mw.Sidebar = NewSidebar(state, a, func(idx int) {
+		mw.SwitchView(idx)
+	})
+
 	i18n.Subscribe(mw.UpdateLanguage)
 	mw.UpdateLanguage()
 
-	logPanel.Log("Chào mừng đến với Mikrotik RouterOS 7 Automation Tool (Desktop Edition)!")
-	logPanel.Log("Chọn phương thức kết nối (REST API hoặc SSH) rồi nhấn 'Kết nối'.")
+	logPanel.Log("Chào mừng đến với Mikrotik RouterOS 7 Automation Tool (Enterprise Edition)!")
+	logPanel.Log("Nhấn '🔌 Kết Nối / Đổi Router' trên thanh Header để bắt đầu kết nối.")
 
 	return mw
 }
 
-// ShowMainView renders the desktop interface with a wide connection bar, tabs, and resizable spacious log panel.
+// SwitchView switches the active content view in the ContentHost.
+func (mw *MainWindow) SwitchView(index int) {
+	if mw.ContentHost == nil || len(mw.tabViews) == 0 {
+		return
+	}
+	if index >= 0 && index < len(mw.tabViews) {
+		mw.ContentHost.Objects = []fyne.CanvasObject{mw.tabViews[index]}
+		mw.ContentHost.Refresh()
+		if mw.appTabs != nil && index < len(mw.appTabs.Items) {
+			mw.appTabs.SelectIndex(index)
+		}
+	}
+}
+
+// ShowMainView renders the modern Enterprise Shell layout.
 func (mw *MainWindow) ShowMainView() {
-	connBarContent := mw.ConnBar.BuildDesktopContainer()
+	mw.tabViews = []fyne.CanvasObject{
+		mw.TabDashboard.BuildDesktopContainer(),
+		mw.TabNetwork.BuildDesktopContainer(),
+		mw.TabQueue.BuildDesktopContainer(),
+		mw.TabSecurity.BuildDesktopContainer(),
+		mw.TabIPSec.BuildDesktopContainer(),
+		mw.TabBackup.BuildDesktopContainer(),
+		mw.TabClear.BuildDesktopContainer(),
+	}
 
+	mw.ContentHost = container.NewStack(mw.tabViews[0])
+
+	// Keep appTabs instantiated for testing and backward-compatibility
 	mw.appTabs = container.NewAppTabs(
-		container.NewTabItem(i18n.T("tab_dashboard"), mw.TabDashboard.BuildDesktopContainer()),
-		container.NewTabItem(i18n.T("tab_network"), mw.TabNetwork.BuildDesktopContainer()),
-		container.NewTabItem(i18n.T("tab_queue"), mw.TabQueue.BuildDesktopContainer()),
-		container.NewTabItem(i18n.T("tab_security"), mw.TabSecurity.BuildDesktopContainer()),
-		container.NewTabItem(i18n.T("tab_ipsec"), mw.TabIPSec.BuildDesktopContainer()),
-		container.NewTabItem(i18n.T("tab_backup"), mw.TabBackup.BuildDesktopContainer()),
-		container.NewTabItem(i18n.T("tab_clear"), mw.TabClear.BuildDesktopContainer()),
+		container.NewTabItem(i18n.T("tab_dashboard"), mw.tabViews[0]),
+		container.NewTabItem(i18n.T("tab_network"), mw.tabViews[1]),
+		container.NewTabItem(i18n.T("tab_queue"), mw.tabViews[2]),
+		container.NewTabItem(i18n.T("tab_security"), mw.tabViews[3]),
+		container.NewTabItem(i18n.T("tab_ipsec"), mw.tabViews[4]),
+		container.NewTabItem(i18n.T("tab_backup"), mw.tabViews[5]),
+		container.NewTabItem(i18n.T("tab_clear"), mw.tabViews[6]),
 	)
-	mw.appTabs.SetTabLocation(container.TabLocationTop)
 
-	// Resizable vertical split: 65% Tabs, 35% Logs
-	mw.Split = container.NewVSplit(mw.appTabs, mw.LogPanel.Container())
-	mw.Split.SetOffset(0.65)
+	// Work area with Sidebar on the left and ContentHost filling the rest
+	workArea := container.NewBorder(
+		nil, nil,
+		mw.Sidebar.Container(),
+		nil,
+		mw.ContentHost,
+	)
+
+	// Resizable vertical split: WorkArea on top (82%), LogTray at bottom (18%)
+	mw.Split = container.NewVSplit(workArea, mw.LogTray.Container())
+	mw.Split.SetOffset(0.82)
+
+	// When log tray expands or collapses, adjust split offset smoothly
+	mw.LogTray.OnHeightChg = func(isExpanded bool) {
+		if isExpanded {
+			mw.Split.SetOffset(0.68)
+		} else {
+			mw.Split.SetOffset(0.92)
+		}
+	}
 
 	mw.LogPanel.SetSplitController(func(mode int) {
 		switch mode {
-		case 0: // Normal / Default
-			mw.Split.SetOffset(0.65)
-		case 1: // Maximize logs
-			mw.Split.SetOffset(0.20)
+		case 0:
+			mw.Split.SetOffset(0.82)
+		case 1:
+			mw.Split.SetOffset(0.25)
 		}
 	})
 
-	content := container.NewBorder(
-		connBarContent,
+	shellContent := container.NewBorder(
+		mw.HeaderBar.Container(),
 		nil,
 		nil,
 		nil,
 		mw.Split,
 	)
 
-	mw.Window.SetContent(content)
-	mw.Window.Resize(fyne.NewSize(1000, 750))
+	mw.Window.SetContent(shellContent)
+	mw.Window.Resize(fyne.NewSize(1080, 760))
 	mw.Window.CenterOnScreen()
 
-	// Ensure Windows OS message pump finishes WM_SIZE and snaps window to center
 	time.AfterFunc(80*time.Millisecond, func() {
 		fyne.Do(mw.Window.CenterOnScreen)
 	})
@@ -133,6 +188,15 @@ func (mw *MainWindow) UpdateLanguage() {
 	fyne.Do(func() {
 		if mw.Window != nil {
 			mw.Window.SetTitle(i18n.T("app_title"))
+		}
+		if mw.HeaderBar != nil {
+			mw.HeaderBar.UpdateLanguage()
+		}
+		if mw.Sidebar != nil {
+			mw.Sidebar.UpdateLanguage()
+		}
+		if mw.LogTray != nil {
+			mw.LogTray.UpdateLanguage()
 		}
 		if mw.appTabs != nil && len(mw.appTabs.Items) >= 7 {
 			mw.appTabs.Items[0].Text = i18n.T("tab_dashboard")
@@ -173,4 +237,3 @@ func (mw *MainWindow) UpdateLanguage() {
 		}
 	})
 }
-
